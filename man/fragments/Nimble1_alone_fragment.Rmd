@@ -1,0 +1,164 @@
+
+## NIMBLE
+
+We start with fitting the example with `NIMBLE` (cf. <https://r-nimble.org/>).
+
+```{r Nimble setup}
+
+library(runMCMCbtadjust)
+library(nimble)
+
+```
+
+As `NIMBLE` distinguishes data that have random distributions from other data, we specify two distinct lists to contain these:
+
+```{r Nimble Data}
+
+ModelData <-list(mass = y1000)
+ModelConsts <- list(nobs = length(y1000))
+
+```
+
+We then write our Bayesian code within R with the `nimbleCode` function in the `nimble` package:
+
+```{r Nimble Code}
+ ModelCode<-nimbleCode(
+  {
+    # Priors
+    population.mean ~ dunif(0,5000)
+    population.sd ~ dunif(0,100)
+    
+    # Normal distribution parameterized by precision = 1/variance in Nimble
+    population.variance <- population.sd * population.sd
+    precision <- 1 / population.variance
+  
+    # Likelihood
+    for(i in 1:nobs){
+      mass[i] ~ dnorm(population.mean, precision)
+    }
+  })
+
+```
+
+Our -optional- next step is to specify starting values for model's parameters. This is done by first writing a function that is repetitively called for each chain. We - also optionally - indicate the names of parameters to be saved and diagnosed in a vector called `params`:
+
+```{r Nimble Inits}
+ModelInits <- function()
+{list (population.mean = rnorm(1,600,90), population.sd = runif(1, 1, 30))}
+  
+Nchains <- 3
+
+set.seed(1)
+Inits<-lapply(1:Nchains,function(x){ModelInits()})
+
+#specifying the names of parameters to analyse and save:
+params <- c("population.mean", "population.sd") 
+
+```
+
+We are now ready to launch `runMCMC_btadjust`: since we use `NIMBLE`, we must specify arguments `code`, `data`, `constants` (see below) as well as `MCMC_language="Nimble"`. We first do it on one chain (argument `Nchains=1`) using in the `control` list argument `neff.method="Coda"` to use the `Coda` method to calculate the number of effective parameters and `convtype="Geweke"` to use the Geweke method to diagnose convergence, with the pre-specified maximum - over analyzed parameters - convergence of 1.05 (`conv.max=1.05`) and the minimum - over analyzed parameters - number of effective values of 1,000 (`neff.min=1000`). Other arguments that are the same for all MCMC languages include `params` (parameter names to diagnose and save), `inits` (initial values), `niter.min` (minimum number of iterations), `niter.max` (maximum number of iterations), `nburnin.min`, `nburnin.max`   `thin.min`, `thin.max` (minimum and maximum number of iterations for respectively the burn-in and thinning parameters):
+
+```{r Nimble first run, cache=FALSE}
+out.mcmc.Coda.Geweke<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = ModelData, MCMC_language="Nimble",
+    Nchains=1, params=params, inits=Inits[1],
+    niter.min=1000, niter.max=300000,
+    nburnin.min=100, nburnin.max=200000, 
+    thin.min=1, thin.max=1000,
+    conv.max=1.05, neff.min=1000,
+    control=list(neff.method="Coda", convtype="Geweke"),
+    control.MCMC=list(showCompilerOutput=FALSE))
+
+```
+
+We then run the MCMC with `Nchains` MCMC chains, the -default- Gelman-Rubin diagnostic of convergence and the -default- `rstan` method for calculating the number of effective values:
+
+
+```{r Nimble second run, cache=FALSE}
+out.mcmc<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = ModelData, MCMC_language="Nimble",
+    Nchains=Nchains, params=params, inits=Inits,
+    niter.min=1000, niter.max=300000,
+    nburnin.min=100, nburnin.max=200000, 
+    thin.min=1, thin.max=1000,
+    conv.max=1.05, neff.min=1000,
+    control.MCMC=list(showCompilerOutput=FALSE))
+
+```
+
+We compare the characteristics of the two MCMCs, both in terms of burn-in, thinning parameter, number of iterations and in terms of time (both total time and CPU time).
+
+```{r Nimble comparison first two runs,echo=FALSE}
+compar_MCMC_times<-format(cbind(unlist(attributes(out.mcmc.Coda.Geweke)$final.params),unlist(attributes(out.mcmc)$final.params)),digits=4,scientific=FALSE)
+
+```
+
+```{r Nimble comparison first two runs invisible,echo=FALSE}
+
+
+knitr::kable(compar_MCMC_times[1:(dim(compar_MCMC_times)[1]-1),],col.names=c("Nimble.Coda.Geweke","Nimble.default"),align="r",caption=paste0("Comparison of the efficiency of first two NIMBLE models:"))
+
+```
+
+We acknowledge that the Coda.Geweke algorithm takes much less time (rows named `duration` and `CPUduration` in the previous table) than the classical setting  to prepare data (rows named `duration.MCMC.preparation` and `CPUduration.MCMC.preparation`)- as `NIMBLE` takes quite a lot of time to prepare each MCMC chain - and we have `r Nchains` chains to prepare in the default setting compared to 1 with Geweke. 
+
+We also notice that the Coda.Geweke algorithm uses more time (`duration.MCMC.transient` and `CPUduration.MCMC.transient`) and iterations (`burnin`) to converge while the default setting takes more time for the asymptotic phase (`duration.MCMC.asymptotic` and `CPUduration.MCMC.asymptotic`), linked to a greater thinning parameter (`thin`). This transient part should be linked to the different behaviors between Geweke and Gelman-Rubin convergence diagnostics, while the differences in thinning parameters might be linked to the different methods in calculating the number of effective parameters. We therefore run a third MCMC on one chain with Geweke diagnostic but the default, rstan method for number of effective values.
+
+```{r Nimble third run, cache=FALSE}
+
+out.mcmc.Geweke<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = ModelData, MCMC_language="Nimble",
+    Nchains=1, params=params, inits=Inits[1],
+    niter.min=1000, niter.max=300000,
+    nburnin.min=100, nburnin.max=200000, 
+    thin.min=1, thin.max=1000,
+    conv.max=1.05, neff.min=1000,
+    control=list(convtype="Geweke"),
+    control.MCMC=list(showCompilerOutput=FALSE))
+
+```
+
+We compare the characteristics of the three `NIMBLE` MCMCs,
+
+```{r Nimble comparison first three runs, echo=FALSE}
+compar_MCMC_times<-format(cbind(unlist(attributes(out.mcmc.Coda.Geweke)$final.params),unlist(attributes(out.mcmc.Geweke)$final.params),unlist(attributes(out.mcmc)$final.params)),digits=4,scientific=FALSE)
+
+
+knitr::kable(compar_MCMC_times[1:(dim(compar_MCMC_times)[1]-1),],col.names=c("Nimble.Coda.Geweke","Nimble.Geweke","Nimble.default"),align="r", caption="Comparison of the efficiency of the three NIMBLE models:")
+
+```
+
+Results do not corroborate our above expectations: indeed, first the Geweke model does not converge within the same number of iterations as the Coda.Geweke one (row `burnin`), which is strange since they use the same method for diagnosing convergence and the same seed. Second, the thinning parameter was not increased when changing from Coda.Geweke to Geweke as expected above, but actually decreased (`thin`).
+
+
+We now turn to the comparison of the statistical parameter outputs. We use two sample Kolmogorov-Smirnov tests to compare each parameter by pairs of MCMC methods:
+
+
+```{r Nimble comparison parameters of first three runs, warning=FALSE,echo=FALSE}
+compar_MCMC_params<-format(cbind(c(ks.test(unlist(out.mcmc[,"population.mean"]),unlist(out.mcmc.Geweke[,"population.mean"]))$p.value
+,ks.test(unlist(out.mcmc.Coda.Geweke[,"population.mean"]),unlist(out.mcmc.Geweke[,"population.mean"]))$p.value
+,ks.test(unlist(out.mcmc[,"population.mean"]),unlist(out.mcmc.Coda.Geweke[,"population.mean"]))$p.value
+),c(ks.test(unlist(out.mcmc[,"population.sd"]),unlist(out.mcmc.Geweke[,"population.sd"]))$p.value
+,ks.test(unlist(out.mcmc.Coda.Geweke[,"population.sd"]),unlist(out.mcmc.Geweke[,"population.sd"]))$p.value
+,ks.test(unlist(out.mcmc[,"population.sd"]),unlist(out.mcmc.Coda.Geweke[,"population.sd"]))$p.value
+)),digits=4,scientific=FALSE)
+rownames(compar_MCMC_params)<-c("default vs. Geweke","Coda.Geweke vs. Geweke","Default vs. Coda.Geweke")
+
+```
+
+```{r Nimble comparison parameters of first three runs invisible, echo=FALSE}
+
+knitr::kable(compar_MCMC_params,col.names=c("mean","sd"),align="r",caption="P-values of paired Kolmogorov-Smirnov tests of output parameters between the first three NIMBLE models:")
+
+```
+
+The p-values associated to the KS tests are not very small - only one out of six is near 0.05. This indicates that the MCMC outputs can be considered as being drawn from the same distributions.
+
+These are summarized in the next tables.
+```{r Nimble summary stats, echo=FALSE}
+
+knitr::kable(format(summary(out.mcmc.Coda.Geweke)[[1]],digits=2,scientific=FALSE),align="r",caption="Summary of the statistical parameters of the Nimble Coda.Geweke model:")
+
+knitr::kable(format(summary(out.mcmc.Geweke)[[1]],digits=2,scientific=FALSE),align="r",caption="Summary of the statistical parameters of the Nimble Geweke model:")
+
+knitr::kable(format(summary(out.mcmc)[[1]],digits=2,scientific=FALSE),align="r",caption="Summary of the statistical parameters of the Nimble default model:")
+
+```
+We notice that parameter values are very close, that naive standard errors (SEs) are very close to Time-series SEs - which is linked to the automatic tuning of the thinning parameter which produces output samples which are nearly independent - and that differences between mean estimators are within several units of Time series-SEs - which we interpret is mostly due to the control of convergence.
