@@ -7,7 +7,7 @@
 \title{The version 1.0.0 of this package was supported by the GAMBAS project funded by the French National Research Agency (ANR-18-CE02-0025).
 This package was developed as part of the author activity at UR EFNO, INRAE, France.}
 \description{
-The function 'runMCMC_btadjust' returns a mcmc.list object which is the output of a Markov Chain Monte Carlo obtained after adjusting burn-in & thinning parameters to meet pre-specified criteria in terms of convergence & effective sample size.
+The function runMCMC_btadjust() returns a mcmc.list object which is the output of a Markov Chain Monte Carlo obtained - from either 'JAGS', 'nimble' or 'greta' - after adjusting burn-in and thinning parameters to meet pre-specified criteria in terms of convergence & effective sample size.
 }
 \author{
 \strong{Maintainer}: Frédéric Gosselin \email{frederic.gosselin@inrae.fr} (\href{https://orcid.org/0000-0003-3737-106X}{ORCID}) (INRAE)

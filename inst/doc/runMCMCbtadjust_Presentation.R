@@ -140,7 +140,7 @@ rownames(compar_MCMC_params)<-c("default vs. Geweke","Coda.Geweke vs. Geweke","D
 
 ## ----Nimble comparison parameters of first three runs invisible, echo=FALSE----
 
-knitr::kable(compar_MCMC_params,col.names=c("mean","sd"),align="r",caption="P-values of paired Kolmogorov-Smirnov tests of output parameters between the first three NIMBLE models:")
+knitr::kable(compar_MCMC_params,col.names=c("mean","sd"),align="r",caption="P-values of paired Kolmogorov-Smirnov tests of output parameters (columns) between the first three NIMBLE models (rows):")
 
 
 ## ----Nimble summary stats, echo=FALSE-----------------------------------------
@@ -203,7 +203,7 @@ compar_MCMC_params<-format(cbind(c(ks.test(unlist(out.mcmc.Geweke[,"population.m
 ,ks.test(unlist(out.mcmc[,"population.sd"]),unlist(out.mcmc.Jags[,"population.sd"]))$p.value
 )),digits=4,scientific=FALSE)
 rownames(compar_MCMC_params)<-c("Nimble.Geweke vs. Jags","Nimble.Coda.Geweke vs. Jags","Nimble.Default vs. Jags")
-knitr::kable(compar_MCMC_params,col.names=c("mean","sd"),align="r", caption="P-values of paired Kolmogorov-Smirnov tests of output parameters of the Jags model with the three NIMBLE models:")
+knitr::kable(compar_MCMC_params,col.names=c("mean","sd"),align="r", caption="P-values of paired Kolmogorov-Smirnov tests of output parameters (columns) of the Jags model with the three NIMBLE models (rows):")
 
 
 ## ----Nimble-Jags comparison efficiency, echo=FALSE----------------------------

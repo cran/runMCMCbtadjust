@@ -184,7 +184,7 @@
 runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_language="Nimble",
 						Nchains,inits=NULL,
 						params=NULL,params.conv=NULL,params.save=NULL,
-						niter.min=100,niter.max=Inf,nburnin.min=10,nburnin.max=Inf,thin.min=1,thin.max=1000,
+						niter.min=100,niter.max=Inf,nburnin.min=10,nburnin.max=Inf,thin.min=1,thin.max=Inf,
 						neff.min=NULL,neff.med=NULL,neff.mean=NULL,
 						conv.max=NULL,conv.med=NULL,conv.mean=NULL,
 						control=list(time.max=NULL,
@@ -468,11 +468,11 @@ CPUtime.btadjust<-0
 	calculate.thinmult.target<-function(diags,neff.min,neff.med,neff.mean)
 	{
 		thinmult<-1
-		neffmax<-max(c(neff.min,neff.med,neff.mean))
+		#neffmax<-max(c(neff.min,neff.med,neff.mean))
 		N<-diags$Nvalues
-		if (!is.null(neff.min)) {thinmult<-max(thinmult,N/diags$min_neff*neff.min/neffmax) }
-		if (!is.null(neff.med)) {thinmult<-max(thinmult,N/diags$med_neff*neff.med/neffmax)}
-		if (!is.null(neff.mean)) {thinmult<-max(thinmult,N/diags$mean_neff*neff.mean/neffmax)}
+		if (!is.null(neff.min)) {thinmult<-max(thinmult,N/diags$min_neff*neff.min/neff.max) }
+		if (!is.null(neff.med)) {thinmult<-max(thinmult,N/diags$med_neff*neff.med/neff.max)}
+		if (!is.null(neff.mean)) {thinmult<-max(thinmult,N/diags$mean_neff*neff.mean/neff.max)}
 
 
 		thinmult
@@ -481,8 +481,8 @@ CPUtime.btadjust<-0
 	##function to put all the neffs on the same scale and then taking the minimum
 	scale.available.neffs<-function(diags,neff.min,neff.med,neff.mean)
 	{
-		neffmax<-max(c(neff.min,neff.med,neff.mean))
-		neffs<-min(c(diags$min_neff/neff.min*neffmax,diags$med_neff/neff.med*neffmax,diags$mean_neff/neff.mean*neffmax))
+		#neffmax<-max(c(neff.min,neff.med,neff.mean))
+		neffs<-min(c(diags$min_neff/neff.min*neff.max,diags$med_neff/neff.med*neff.max,diags$mean_neff/neff.mean*neff.max))
 		neffs
 	}
 
@@ -509,6 +509,7 @@ CPUtime.btadjust<-0
 	###0-1. Initialisation & checkings
 	########################################
 
+	neff.max<-max(neff.min,neff.med,neff.mean)
 
 	### variable that will contain the info on previous convergences
 	previously.converged<-FALSE
@@ -638,6 +639,11 @@ if (control$check.installation)
   	if (MCMC_language=="Jags"&(!is.character(code)))
   	{stop("Code should be a character containing either the link to the text file containing the code or the code itself")}
 
+	  if (is.finite(niter.max))
+	  {if ((niter.max/thin.max)>(100*neff.max)) {warning("There is a high risk of very oversized Rdata files since (niter.max/thin.max)>(100*neff.max); consider increasing thin.max")}
+	    else if ((niter.max/thin.max)>(10*neff.max)) {warning("There is a high risk of oversized Rdata files since (niter.max/thin.max)>(10*neff.max); consider increasing thin.max")}
+	    else if ((niter.max/thin.max)>(3*neff.max)) {warning("There is a risk of slightly oversized Rdata files since (niter.max/thin.max)>(3*neff.max); consider increasing thin.max")}
+	  }
 
 	## initial values of variables used on the algorithm
 
@@ -659,7 +665,6 @@ if (control$check.installation)
 	niter.tot<-0
 	neffs.reached<-FALSE
 	params<-union(params,union(params.conv,params.save))
-	neff.max<-max(neff.min,neff.med,neff.mean)
 	if (is.null(params)) stop("Program stopped: at least one of the following arguments should be specified: params, params.conv, params.save.")
 	if (is.null(params.conv)) {params.conv<-params}
 	if (is.null(params.save)) {params.save<-params}
@@ -907,7 +912,7 @@ if (control$check.installation)
 	#default value for previously.converged0
 	previously.converged0<-previously.converged
 
-	while((!converged |!neffs.reached)&niter>0)
+	while((!converged |!neffs.reached)&niter>=thin)
 	{
 	current.CPU.time<-system.time({
 	##store previously.converged at the beginning of the last cycle
@@ -1061,7 +1066,7 @@ if (control$check.installation)
 		########################################
 		### 2.2: rerunning the model:
 		########################################
-		if (niter>0)
+		if (niter>=thin)
 		{
 			current.CPU.time<-system.time({
 			time.MCMC0<-Sys.time()
@@ -1226,8 +1231,8 @@ if (control$check.installation)
 			#print(paste("underlying indices: ",index.conv.temp,", ",size.samplesList.temp))
 			}) ## END: current.CPU.time<-system.time({
 			CPUtime.btadjust<-CPUtime.btadjust+current.CPU.time[1]+current.CPU.time[2]
-			} ## END: if (niter>0)
-	}	##END of while((!converged |!neffs.reached)&niter>0)
+			} ## END: if (niter>=thin)
+	}	##END of while((!converged |!neffs.reached)&niter>=thin)
 
 
 	########################################

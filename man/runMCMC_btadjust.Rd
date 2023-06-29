@@ -20,7 +20,7 @@ runMCMC_btadjust(
   nburnin.min = 10,
   nburnin.max = Inf,
   thin.min = 1,
-  thin.max = 1000,
+  thin.max = Inf,
   neff.min = NULL,
   neff.med = NULL,
   neff.mean = NULL,

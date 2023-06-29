@@ -1,6 +1,6 @@
 
 ## JAGS
-We now turn to analyzing the same data with the same statistical model using `JAGS` with `runMCMC_btadjust`. We rely on the data simulated above. In `JAGS`, we now put all the data in the same list:
+We now turn to analyzing the same data with the same statistical model using `JAGS` with `runMCMC_btadjust()`. We rely on the data simulated above. In `JAGS`, we now put all the data in the same list:
 
 ```{r Jags Data}
 
@@ -8,6 +8,7 @@ ModelData <-list(mass = y1000, nobs = length(y1000))
 
 
 ```
+
 We then propose the use of `JAGS` with a specification of the model from within R - which we find more convenient. We therefore write the model within `R` as a character chain:
 
 ```{r Jags ModelCode}
@@ -31,9 +32,9 @@ modeltotransfer<-"model {
 
 ```
 
-The other objects useful or required for running `runMCMC_btadjust` with `JAGS` are similar to what is required with `NIMBLE` (`Inits`, `Nchains`, `params`) and are not repeated here.
+The other objects useful or required for running `runMCMC_btadjust` with `JAGS` are similar to those required with `NIMBLE` (`Inits`, `Nchains`, `params`) and are not repeated here.
 
-We then launch runMCMC_btadjust with `MCMC_language="Jags"`, specifying arguments `code` and `data` which are required in this case:
+We then launch `runMCMC_btadjust()` with `MCMC_language="Jags"`, specifying arguments `code` and `data` which are required in this case:
 
 ```{r Jags First model, cache=FALSE}
 
@@ -67,9 +68,10 @@ compar_MCMC_params<-format(cbind(c(ks.test(unlist(out.mcmc.Geweke[,"population.m
 ,ks.test(unlist(out.mcmc[,"population.sd"]),unlist(out.mcmc.Jags[,"population.sd"]))$p.value
 )),digits=4,scientific=FALSE)
 rownames(compar_MCMC_params)<-c("Nimble.Geweke vs. Jags","Nimble.Coda.Geweke vs. Jags","Nimble.Default vs. Jags")
-knitr::kable(compar_MCMC_params,col.names=c("mean","sd"),align="r", caption="P-values of paired Kolmogorov-Smirnov tests of output parameters of the Jags model with the three NIMBLE models:")
+knitr::kable(compar_MCMC_params,col.names=c("mean","sd"),align="r", caption="P-values of paired Kolmogorov-Smirnov tests of output parameters (columns) of the Jags model with the three NIMBLE models (rows):")
 
 ```
+
 Our results do confirm that the `JAGS` result cannot be considered as stemming from a different probability distribution than `NIMBLE` results.
 
 We finally compare the efficiency of the `JAGS` and default `NIMBLE` MCMCs:
@@ -80,9 +82,9 @@ knitr::kable(compar_MCMC_times[1:(dim(compar_MCMC_times)[1]-1),],col.names=c("Ni
 
 ```
 
-The conclusion is that `JAGS` is much faster than `NIMBLE` on this example, due to much less time devoted to MCMC preparation - as well as to burn-in/thinning adjustment. Actually there is no adjustment with `JAGS` (`niter.tot` is equal to the initial number of iterations). Yet, `NIMBLE` is quicker regarding MCMC updating by iteration since it took `NIMBLE` less time for the transient phase (respectively less than twice time for the asymptotic phase) although using more than seven (resp. seventeen) times more iterations than `JAGS`.
+The conclusion is that `JAGS` is much faster than `NIMBLE` on this example (row named `duration` in the previous table), due to much less time devoted to MCMC preparation - as well as to burn-in/thinning adjustment (rows named `duration.MCMC.preparation` and `duration.btadjust` in the previous table). Actually there is no adjustment with `JAGS` (`niter.tot` is equal to the initial number of iterations). Yet, `NIMBLE` is quicker regarding MCMC updating by iteration since it took `NIMBLE` less time than `JAGS` for the transient phase (respectively less than twice time for the asymptotic phase) although using more than seven (resp. seventeen) times more iterations than `JAGS`.
 
-At first sight, we would also conclude that MCMC efficiency per effective value is also better with `NIMBLE` since both languages had the same target for the minimum number of effective value - 1,000 and the total MCMC time was lower with `NIMBLE`. Yet, a more rigorous comparison finds the reverse result:
+At first sight, we would also conclude that MCMC efficiency per effective value is also better with `NIMBLE` since both languages had the same target for the minimum number of effective value - 1,000 - and the total MCMC time was lower with `NIMBLE`. Yet, a more rigorous comparison finds the reverse result:
 
 ```{r Nimble-Jags second comparison efficiency, echo=FALSE}
 compar_MCMC_times<-format(cbind(c(attributes(out.mcmc)$final.diags$neff_synth[,"min"

@@ -56,7 +56,7 @@ params <- c("population.mean", "population.sd")
 
 ```
 
-We are now ready to launch `runMCMC_btadjust`: since we use `NIMBLE`, we must specify arguments `code`, `data`, `constants` (see below) as well as `MCMC_language="Nimble"`. We first do it on one chain (argument `Nchains=1`) using in the `control` list argument `neff.method="Coda"` to use the `Coda` method to calculate the number of effective parameters and `convtype="Geweke"` to use the Geweke method to diagnose convergence, with the pre-specified maximum - over analyzed parameters - convergence of 1.05 (`conv.max=1.05`) and the minimum - over analyzed parameters - number of effective values of 1,000 (`neff.min=1000`). Other arguments that are the same for all MCMC languages include `params` (parameter names to diagnose and save), `inits` (initial values), `niter.min` (minimum number of iterations), `niter.max` (maximum number of iterations), `nburnin.min`, `nburnin.max`   `thin.min`, `thin.max` (minimum and maximum number of iterations for respectively the burn-in and thinning parameters):
+We are now ready to launch `runMCMC_btadjust()`: since we use `NIMBLE`, we must specify arguments `code`, `data`, `constants` (see below) as well as `MCMC_language="Nimble"`. We first do it on one chain (argument `Nchains=1`) using in the `control` list argument `neff.method="Coda"` to use the `Coda` method to calculate the number of effective parameters and `convtype="Geweke"` to use the Geweke method to diagnose convergence, with the pre-specified maximum - over analyzed parameters - convergence of 1.05 (`conv.max=1.05`) and the minimum - over analyzed parameters - number of effective values of 1,000 (`neff.min=1000`). Other arguments that are the same for all MCMC languages include `params` (parameter names to diagnose and save), `inits` (initial values), `niter.min` (minimum number of iterations), `niter.max` (maximum number of iterations), `nburnin.min`, `nburnin.max`   `thin.min`, `thin.max` (minimum and maximum number of iterations for respectively the burn-in and thinning parameters):
 
 ```{r Nimble first run, cache=FALSE}
 out.mcmc.Coda.Geweke<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = ModelData, MCMC_language="Nimble",
@@ -125,7 +125,7 @@ knitr::kable(compar_MCMC_times[1:(dim(compar_MCMC_times)[1]-1),],col.names=c("Ni
 
 ```
 
-Results do not corroborate our above expectations: indeed, first the Geweke model does not converge within the same number of iterations as the Coda.Geweke one (row `burnin`), which is strange since they use the same method for diagnosing convergence and the same seed. Second, the thinning parameter was not increased when changing from Coda.Geweke to Geweke as expected above, but actually decreased (`thin`).
+Results do not corroborate our above expectations: indeed, first the Geweke model does not converge within the same number of iterations as the Coda.Geweke one (row `burnin`), which is strange since they use the same method for diagnosing convergence and the same seed. Second, the thinning parameter was not increased when changing from Coda.Geweke to Geweke as expected above, but actually decreased (row `thin`).
 
 
 We now turn to the comparison of the statistical parameter outputs. We use two sample Kolmogorov-Smirnov tests to compare each parameter by pairs of MCMC methods:
@@ -145,13 +145,14 @@ rownames(compar_MCMC_params)<-c("default vs. Geweke","Coda.Geweke vs. Geweke","D
 
 ```{r Nimble comparison parameters of first three runs invisible, echo=FALSE}
 
-knitr::kable(compar_MCMC_params,col.names=c("mean","sd"),align="r",caption="P-values of paired Kolmogorov-Smirnov tests of output parameters between the first three NIMBLE models:")
+knitr::kable(compar_MCMC_params,col.names=c("mean","sd"),align="r",caption="P-values of paired Kolmogorov-Smirnov tests of output parameters (columns) between the first three NIMBLE models (rows):")
 
 ```
 
 The p-values associated to the KS tests are not very small - only one out of six is near 0.05. This indicates that the MCMC outputs can be considered as being drawn from the same distributions.
 
-These are summarized in the next tables.
+These parameters are summarized in the next tables.
+
 ```{r Nimble summary stats, echo=FALSE}
 
 knitr::kable(format(summary(out.mcmc.Coda.Geweke)[[1]],digits=2,scientific=FALSE),align="r",caption="Summary of the statistical parameters of the Nimble Coda.Geweke model:")
@@ -161,4 +162,5 @@ knitr::kable(format(summary(out.mcmc.Geweke)[[1]],digits=2,scientific=FALSE),ali
 knitr::kable(format(summary(out.mcmc)[[1]],digits=2,scientific=FALSE),align="r",caption="Summary of the statistical parameters of the Nimble default model:")
 
 ```
+
 We notice that parameter values are very close, that naive standard errors (SEs) are very close to Time-series SEs - which is linked to the automatic tuning of the thinning parameter which produces output samples which are nearly independent - and that differences between mean estimators are within several units of Time series-SEs - which we interpret is mostly due to the control of convergence.
