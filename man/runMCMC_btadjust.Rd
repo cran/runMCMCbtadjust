@@ -31,7 +31,7 @@ runMCMC_btadjust(
     NULL, recheck.convergence = TRUE, convtype = "Gelman", convtype.Gelman = 2,
     convtype.Geweke = c(0.1, 0.5), convtype.alpha = 0.05, neff.method = "Stan",
     Ncycles.target = 2, props.conv = c(0.25, 0.5, 0.75), min.Nvalues = 300, min.thinmult
-    = 1.1, safemultiplier.Nvals = 1.2, round.thinmult = FALSE, identifier.to.print = "",
+    = 1.1, safemultiplier.Nvals = 1.2, round.thinmult = TRUE, identifier.to.print = "",
     print.diagnostics = FALSE, print.thinmult = TRUE, innerprint = FALSE, seed = 1,
     remove.fixedchains = TRUE, 
      check.installation = TRUE),
@@ -108,7 +108,7 @@ The algorithm will not stop if the mean convergence diagnostic is not below this
   \item \code{Ncycles.target}: integer value: targeted number of MCMC runs. Default to 2.
   \item \code{props.conv}: numeric vector: in case of non convergence: quantiles of number of iterations removed to recheck convergence. Values should be between 0 and 1.
   \item \code{min.Nvalues}: integer value: minimum number of values to diagnose convergence of level of autocorrelation.
-  \item \code{round.thinmult}: logical value: should the thin multiplier be rounded to the nearest integer so that past values are precisely positioned on the modified iteration sequence?
+  \item \code{round.thinmult}: logical value: should the thin multiplier be rounded to the nearest integer so that past values are precisely positioned on the modified iteration sequence? Default to TRUE. Value of FALSE may not be rigorous or may not converge well.
   \item \code{min.thinmult}: numeric value: minimum value of thin multiplier: if diagnostics suggest to multiply by less than this, this is not done and the current situation of autocorrelation is considered OK.
   \item \code{seed}: integer number: seed for the pseudo-random number generator inside runMCMC_btadjust.
   \item \code{identifier.to.print}: character string: printed each time an MCMC update is ran to identify the model (esp. if multiple successive calls to \code{runMCMC_btadjust} are made).

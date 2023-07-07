@@ -1,3 +1,10 @@
+# runMCMCbtadjust 1.0.2
+
+- DESCRIPTION: changing uppercase in Title for the term with
+- Changed default value for round.thinmult in parameter control to TRUE, which is more rigorous.
+
+---
+
 # runMCMCbtadjust 1.0.1
 
 - Added a `NEWS.md` file to track changes to the package.
