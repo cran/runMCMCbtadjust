@@ -65,7 +65,8 @@
 #' \item \code{n.adapt} (only for \code{MCMC_language=="Jags"}): integer value: number of iterations used for adaptation (in function \code{jags.model} in \code{rjags} package).
 #' \item \code{RNG.names} (only for \code{MCMC_language=="Jags"}): character vector: name of pseudo-random number generators for each chain. Each component of the vector should be among "base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper", "base::Mersenne-Twister". If less values than \code{Nchains} are provided, they are specified periodically.
 #' \item \code{n_cores} (only for \code{MCMC_language=="Greta"}): integer or NULL: maximum number of cores to use by each sampler.
-#' \item \code{showCompilerOutput} (only for \code{MCMC_language=="Nimble"}): logical value indicating whether details of C++ compilation should be printed.
+#' \item \code{showCompilerOutput} (only for \code{MCMC_language=="Nimble"}): logical value indicating whether details of C++ compilation should be printed. Default to TRUE.
+#' \item \code{buildDerivs} (only for \code{MCMC_language=="Nimble"}): logical value indicating derivatives should be prepared when preparing Nimble model (will esp. allow to use HMC sampler). Default to FALSE.
 #' }
 #'
 #'
@@ -193,7 +194,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 						Ncycles.target=2,props.conv=c(0.25,0.5,0.75),min.Nvalues=300,
 						min.thinmult=1.1,safemultiplier.Nvals=1.2,round.thinmult=TRUE,
 						identifier.to.print="",print.diagnostics=FALSE,print.thinmult=TRUE,innerprint=FALSE,seed=1,remove.fixedchains=TRUE,check.installation=TRUE),
-						control.MCMC=list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=1000,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),n_cores=NULL,showCompilerOutput=TRUE))
+						control.MCMC=list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=1000,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),n_cores=NULL,showCompilerOutput=TRUE,buildDerivs=FALSE))
 
 {
 
@@ -535,7 +536,7 @@ CPUtime.btadjust<-0
 
 
 	### putting the control.MCMC argument in the good format in case it is specified partially: same sequence as for control/control0:
-	control.MCMC0<-list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=1000,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),n_cores=NULL,showCompilerOutput=TRUE)
+	control.MCMC0<-list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=1000,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),n_cores=NULL,showCompilerOutput=TRUE,buildDerivs=FALSE)
 	if (length(setdiff(names(control.MCMC),names(control.MCMC0)))>0)
 		{stop("The names of the control.MCMC argument do not match the default names")}
 	if (length(intersect(names(control.MCMC),names(control.MCMC0)))<length(names(control.MCMC0)))
@@ -683,7 +684,7 @@ if (control$check.installation)
 		ModelMCMC <- vector("list", Nchains)
 
 		for (i in 1:Nchains)
-		{Model[[i]] <- nimble::nimbleModel(code = code, name = 'Nimble', constants = constants, data = data)
+		{Model[[i]] <- nimble::nimbleModel(code = code, name = 'Nimble', constants = constants, data = data, buildDerivs=control.MCMC$buildDerivs)
 		CModel[[i]] <- nimble::compileNimble(Model[[i]], showCompilerOutput = control.MCMC$showCompilerOutput)
 		ConfModel[[i]] <- nimble::configureMCMC(Model[[i]], thin = thin, monitors = params)
 		if (!is.null(control.MCMC$confModel.expression.toadd))

@@ -1,6 +1,11 @@
+# runMCMCbtadjust 1.0.3
+
+- Added buildDerivs component to control.MCMC parameter.
+
+---
+
 # runMCMCbtadjust 1.0.2
 
-- DESCRIPTION: changing uppercase in Title for the term with
 - Changed default value for round.thinmult in parameter control to TRUE, which is more rigorous.
 
 ---

@@ -38,7 +38,7 @@ runMCMC_btadjust(
   control.MCMC = list(confModel.expression.toadd = NULL, sampler = expression(hmc()),
     warmup = 1000, n.adapt = 1000, RNG.names = c("base::Wichmann-Hill",
     "base::Marsaglia-Multicarry", "base::Super-Duper", "base::Mersenne-Twister"), n_cores
-    = NULL, showCompilerOutput = TRUE)
+    = NULL, showCompilerOutput = TRUE, buildDerivs = FALSE)
 )
 }
 \arguments{
@@ -127,7 +127,8 @@ The algorithm will not stop if the mean convergence diagnostic is not below this
 \item \code{n.adapt} (only for \code{MCMC_language=="Jags"}): integer value: number of iterations used for adaptation (in function \code{jags.model} in \code{rjags} package).
 \item \code{RNG.names} (only for \code{MCMC_language=="Jags"}): character vector: name of pseudo-random number generators for each chain. Each component of the vector should be among "base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper", "base::Mersenne-Twister". If less values than \code{Nchains} are provided, they are specified periodically.
 \item \code{n_cores} (only for \code{MCMC_language=="Greta"}): integer or NULL: maximum number of cores to use by each sampler.
-\item \code{showCompilerOutput} (only for \code{MCMC_language=="Nimble"}): logical value indicating whether details of C++ compilation should be printed.
+\item \code{showCompilerOutput} (only for \code{MCMC_language=="Nimble"}): logical value indicating whether details of C++ compilation should be printed. Default to TRUE.
+\item \code{buildDerivs} (only for \code{MCMC_language=="Nimble"}): logical value indicating derivatives should be prepared when preparing Nimble model (will esp. allow to use HMC sampler). Default to FALSE.
 }}
 }
 \value{
