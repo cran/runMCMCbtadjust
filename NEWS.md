@@ -1,4 +1,8 @@
-# runMCMCbtadjust 1.0.3
+# runMCMCbtadjust 1.0.4
+
+- Replaced (index.conv-1) by ifelse(converged,index.conv-1,size.samplesList) in final calculations of durations. Otherwise, erroneous in case of non convergence..
+
+---# runMCMCbtadjust 1.0.3
 
 - Added buildDerivs component to control.MCMC parameter.
 

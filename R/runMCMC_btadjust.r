@@ -46,7 +46,7 @@
 #'   \item \code{neff.method}: character value: method used to calculate the effective sample sizes. Current choice between "Stan" (the default) and "Coda". If "Stan", uses the function \code{monitor} in package \code{rstan}. If "Coda", uses the function \code{effectiveSize} in package \code{coda}.
 #'   \item \code{Ncycles.target}: integer value: targeted number of MCMC runs. Default to 2.
 #'   \item \code{props.conv}: numeric vector: in case of non convergence: quantiles of number of iterations removed to recheck convergence. Values should be between 0 and 1.
-#'   \item \code{min.Nvalues}: integer value: minimum number of values to diagnose convergence of level of autocorrelation.
+#'   \item \code{min.Nvalues}: integer value: minimum number of values to diagnose convergence or level of autocorrelation.
 #'   \item \code{round.thinmult}: logical value: should the thin multiplier be rounded to the nearest integer so that past values are precisely positioned on the modified iteration sequence? Default to TRUE. Value of FALSE may not be rigorous or may not converge well.
 #'   \item \code{min.thinmult}: numeric value: minimum value of thin multiplier: if diagnostics suggest to multiply by less than this, this is not done and the current situation of autocorrelation is considered OK.
 #'   \item \code{seed}: integer number: seed for the pseudo-random number generator inside runMCMC_btadjust.
@@ -1348,15 +1348,15 @@ if (control$check.installation)
 												conv.max=conv.max,conv.med=conv.med,conv.mean=conv.mean,
 												control=control,control.MCMC=control.MCMC,
 												Nchains=Nchains,final.Nchains=Nchains.updated),
-							final.params=list(converged=converged,burnin=nburnin.min0+sum(numIter.samplesList[1:(index.conv-1)]),thin=thin,niter.tot=niter.tot,
+							final.params=list(converged=converged,burnin=nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]),thin=thin,niter.tot=niter.tot,
 											duration=total.duration,duration.MCMC.preparation=time.MCMC.Preparation,
-											duration.MCMC.transient=time.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:(index.conv-1)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)),
-											duration.MCMC.asymptotic=time.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:(index.conv-1)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
+											duration.MCMC.transient=time.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)),
+											duration.MCMC.asymptotic=time.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
 											duration.btadjust=total.duration-time.MCMC.Preparation-time.MCMC,
 											CPUduration=unname(CPUtime.MCMC.Preparation+CPUtime.MCMC+CPUtime.btadjust),
 											CPUduration.MCMC.preparation=unname(CPUtime.MCMC.Preparation),
-											CPUduration.MCMC.transient=unname(CPUtime.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:(index.conv-1)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
-											CPUduration.MCMC.asymptotic=unname(CPUtime.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:(index.conv-1)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)))),
+											CPUduration.MCMC.transient=unname(CPUtime.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
+											CPUduration.MCMC.asymptotic=unname(CPUtime.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)))),
 											CPUduration.btadjust=unname(CPUtime.btadjust),
 											time_end=Sys.time()),
 							#NB: burnin and niter.tot are in MCMC iteration units for one chain; thin is in MCMC iteration units
@@ -1384,15 +1384,15 @@ if (control$check.installation)
 														conv.max=conv.max,conv.med=conv.med,conv.mean=conv.mean,
 														control=control,control.MCMC=control.MCMC,
 														Nchains=Nchains,final.Nchains=Nchains.updated),
-									final.params=list(converged=converged,burnin=nburnin.min0+sum(numIter.samplesList[1:(index.conv-1)]),thin=thin*thin.end,niter.tot=niter.tot,
+									final.params=list(converged=converged,burnin=nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]),thin=thin*thin.end,niter.tot=niter.tot,
 													duration=total.duration,duration.MCMC.preparation=time.MCMC.Preparation,
-													duration.MCMC.transient=time.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:(index.conv-1)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)),
-													duration.MCMC.asymptotic=time.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:(index.conv-1)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
+													duration.MCMC.transient=time.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)),
+													duration.MCMC.asymptotic=time.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
 													duration.btadjust=total.duration-time.MCMC.Preparation-time.MCMC,
 													CPUduration=unname(CPUtime.MCMC.Preparation+CPUtime.MCMC+CPUtime.btadjust),
 													CPUduration.MCMC.preparation=unname(CPUtime.MCMC.Preparation),
-													CPUduration.MCMC.transient=unname(CPUtime.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:(index.conv-1)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
-													CPUduration.MCMC.asymptotic=unname(CPUtime.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:(index.conv-1)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)))),
+													CPUduration.MCMC.transient=unname(CPUtime.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
+													CPUduration.MCMC.asymptotic=unname(CPUtime.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)))),
 													CPUduration.btadjust=unname(CPUtime.btadjust),
 													time_end=Sys.time()),
 									#NB: burnin and niter.tot are in MCMC iteration units for one chain; thin is in MCMC iteration units
