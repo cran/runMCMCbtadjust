@@ -32,11 +32,11 @@ runMCMC_btadjust(
     convtype.Geweke = c(0.1, 0.5), convtype.alpha = 0.05, neff.method = "Stan",
     Ncycles.target = 2, props.conv = c(0.25, 0.5, 0.75), min.Nvalues = 300, min.thinmult
     = 1.1, safemultiplier.Nvals = 1.2, round.thinmult = TRUE, identifier.to.print = "",
-    print.diagnostics = FALSE, print.thinmult = TRUE, innerprint = FALSE, seed = 1,
+    print.diagnostics = FALSE, print.thinmult = TRUE, innerprint = FALSE, seed = NULL,
     remove.fixedchains = TRUE, 
      check.installation = TRUE),
   control.MCMC = list(confModel.expression.toadd = NULL, sampler = expression(hmc()),
-    warmup = 1000, n.adapt = 1000, RNG.names = c("base::Wichmann-Hill",
+    warmup = 1000, n.adapt = -1, RNG.names = c("base::Wichmann-Hill",
     "base::Marsaglia-Multicarry", "base::Super-Duper", "base::Mersenne-Twister"), n_cores
     = NULL, showCompilerOutput = TRUE, buildDerivs = FALSE)
 )
@@ -110,7 +110,7 @@ The algorithm will not stop if the mean convergence diagnostic is not below this
   \item \code{min.Nvalues}: integer value: minimum number of values to diagnose convergence or level of autocorrelation.
   \item \code{round.thinmult}: logical value: should the thin multiplier be rounded to the nearest integer so that past values are precisely positioned on the modified iteration sequence? Default to TRUE. Value of FALSE may not be rigorous or may not converge well.
   \item \code{min.thinmult}: numeric value: minimum value of thin multiplier: if diagnostics suggest to multiply by less than this, this is not done and the current situation of autocorrelation is considered OK.
-  \item \code{seed}: integer number: seed for the pseudo-random number generator inside runMCMC_btadjust.
+  \item \code{seed}: integer number or NULL value: seed for the pseudo-random number generator inside runMCMC_btadjust. Default to NULL in which case here is no control of this seed.
   \item \code{identifier.to.print}: character string: printed each time an MCMC update is ran to identify the model (esp. if multiple successive calls to \code{runMCMC_btadjust} are made).
   \item \code{safemultiplier.Nvals}: positive number: number bigger than 1 used to multiply the targeted number of efficient values in calculations of additional number of iterations.
   \item \code{print.diagnostics}: logical value: should diagnostics be printed each time they are calculated? Default to FALSE.
@@ -124,7 +124,7 @@ The algorithm will not stop if the mean convergence diagnostic is not below this
  \itemize{ \item \code{confModel.expression.toadd} (only for \code{MCMC_language=="Nimble"}): expression to add to \code{confModel} to specify samplers, remove nodes... \code{confModel} should be referred to by \code{confModel[[i]]}. See Details for an example.
 \item \code{sampler} (only for \code{MCMC_language=="Greta"}): expression used to specify the sampler used.
 \item \code{warmup} (only for \code{MCMC_language=="Greta"}): integer value used as warmup parameter in the mcmc.
-\item \code{n.adapt} (only for \code{MCMC_language=="Jags"}): integer value: number of iterations used for adaptation (in function \code{jags.model} in \code{rjags} package).
+\item \code{n.adapt} (only for \code{MCMC_language=="Jags"} or \code{MCMC_language=="Nimvle"}): integer value: number of iterations used for adaptation (in function \code{jags.model} in \code{rjags} package in case \code{MCMC_language=="Jags"} and otherwise in Nimble - added to burnin: first iterations that are not saved).
 \item \code{RNG.names} (only for \code{MCMC_language=="Jags"}): character vector: name of pseudo-random number generators for each chain. Each component of the vector should be among "base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper", "base::Mersenne-Twister". If less values than \code{Nchains} are provided, they are specified periodically.
 \item \code{n_cores} (only for \code{MCMC_language=="Greta"}): integer or NULL: maximum number of cores to use by each sampler.
 \item \code{showCompilerOutput} (only for \code{MCMC_language=="Nimble"}): logical value indicating whether details of C++ compilation should be printed. Default to TRUE.
@@ -135,7 +135,9 @@ The algorithm will not stop if the mean convergence diagnostic is not below this
 a \code{mcmc.list} object with attributes with the following components:
       \itemize{ \item \code{call.params}: a list containing most of the important arguments of the \code{runMCMC_btadjust} call as well as a summary of dimensions/lengths and mean of components of \code{data} and \code{constants} arguments.
       \item \code{final.params}: a list with the parameters of the MCMC at the end of fitting:
-            \itemize{ \item \code{burnin}: number of iterations of the transient (burn-in) period
+            \itemize{ \item \code{converged}: logical: TRUE if model has converged when stopping the MCMC, FALSE otherwise
+            \item \code{neffs.reached}: logical: TRUE if model has converged and reached the objectives in terms of effective sample size, FALSE otherwise
+            \item \code{burnin}: number of iterations of the transient (burn-in) period
             \item \code{thin}: number of iterations used for thinning the final output
             \item \code{niter.tot}: total number of iterations (of each MCMC chain)
             \item \code{duration}: total duration (elapsed time) of the fit (in seconds)

@@ -49,7 +49,7 @@
 #'   \item \code{min.Nvalues}: integer value: minimum number of values to diagnose convergence or level of autocorrelation.
 #'   \item \code{round.thinmult}: logical value: should the thin multiplier be rounded to the nearest integer so that past values are precisely positioned on the modified iteration sequence? Default to TRUE. Value of FALSE may not be rigorous or may not converge well.
 #'   \item \code{min.thinmult}: numeric value: minimum value of thin multiplier: if diagnostics suggest to multiply by less than this, this is not done and the current situation of autocorrelation is considered OK.
-#'   \item \code{seed}: integer number: seed for the pseudo-random number generator inside runMCMC_btadjust.
+#'   \item \code{seed}: integer number or NULL value: seed for the pseudo-random number generator inside runMCMC_btadjust. Default to NULL in which case here is no control of this seed.
 #'   \item \code{identifier.to.print}: character string: printed each time an MCMC update is ran to identify the model (esp. if multiple successive calls to \code{runMCMC_btadjust} are made).
 #'   \item \code{safemultiplier.Nvals}: positive number: number bigger than 1 used to multiply the targeted number of efficient values in calculations of additional number of iterations.
 #'   \item \code{print.diagnostics}: logical value: should diagnostics be printed each time they are calculated? Default to FALSE.
@@ -62,7 +62,7 @@
 #'  \itemize{ \item \code{confModel.expression.toadd} (only for \code{MCMC_language=="Nimble"}): expression to add to \code{confModel} to specify samplers, remove nodes... \code{confModel} should be referred to by \code{confModel[[i]]}. See Details for an example.
 #' \item \code{sampler} (only for \code{MCMC_language=="Greta"}): expression used to specify the sampler used.
 #' \item \code{warmup} (only for \code{MCMC_language=="Greta"}): integer value used as warmup parameter in the mcmc.
-#' \item \code{n.adapt} (only for \code{MCMC_language=="Jags"}): integer value: number of iterations used for adaptation (in function \code{jags.model} in \code{rjags} package).
+#' \item \code{n.adapt} (only for \code{MCMC_language=="Jags"} or \code{MCMC_language=="Nimvle"}): integer value: number of iterations used for adaptation (in function \code{jags.model} in \code{rjags} package in case \code{MCMC_language=="Jags"} and otherwise in Nimble - added to burnin: first iterations that are not saved).
 #' \item \code{RNG.names} (only for \code{MCMC_language=="Jags"}): character vector: name of pseudo-random number generators for each chain. Each component of the vector should be among "base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper", "base::Mersenne-Twister". If less values than \code{Nchains} are provided, they are specified periodically.
 #' \item \code{n_cores} (only for \code{MCMC_language=="Greta"}): integer or NULL: maximum number of cores to use by each sampler.
 #' \item \code{showCompilerOutput} (only for \code{MCMC_language=="Nimble"}): logical value indicating whether details of C++ compilation should be printed. Default to TRUE.
@@ -73,7 +73,9 @@
 #' @return a \code{mcmc.list} object with attributes with the following components:
 #'       \itemize{ \item \code{call.params}: a list containing most of the important arguments of the \code{runMCMC_btadjust} call as well as a summary of dimensions/lengths and mean of components of \code{data} and \code{constants} arguments.
 #'       \item \code{final.params}: a list with the parameters of the MCMC at the end of fitting:
-#'             \itemize{ \item \code{burnin}: number of iterations of the transient (burn-in) period
+#'             \itemize{ \item \code{converged}: logical: TRUE if model has converged when stopping the MCMC, FALSE otherwise
+#'             \item \code{neffs.reached}: logical: TRUE if model has converged and reached the objectives in terms of effective sample size, FALSE otherwise
+#'             \item \code{burnin}: number of iterations of the transient (burn-in) period
 #'             \item \code{thin}: number of iterations used for thinning the final output
 #'             \item \code{niter.tot}: total number of iterations (of each MCMC chain)
 #'             \item \code{duration}: total duration (elapsed time) of the fit (in seconds)
@@ -193,8 +195,8 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 						convtype="Gelman",convtype.Gelman=2,convtype.Geweke=c(0.1,0.5),convtype.alpha=0.05,neff.method="Stan",
 						Ncycles.target=2,props.conv=c(0.25,0.5,0.75),min.Nvalues=300,
 						min.thinmult=1.1,safemultiplier.Nvals=1.2,round.thinmult=TRUE,
-						identifier.to.print="",print.diagnostics=FALSE,print.thinmult=TRUE,innerprint=FALSE,seed=1,remove.fixedchains=TRUE,check.installation=TRUE),
-						control.MCMC=list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=1000,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),n_cores=NULL,showCompilerOutput=TRUE,buildDerivs=FALSE))
+						identifier.to.print="",print.diagnostics=FALSE,print.thinmult=TRUE,innerprint=FALSE,seed=NULL,remove.fixedchains=TRUE,check.installation=TRUE),
+						control.MCMC=list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=-1,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),n_cores=NULL,showCompilerOutput=TRUE,buildDerivs=FALSE))
 
 {
 
@@ -519,7 +521,7 @@ CPUtime.btadjust<-0
 	control0<-list(time.max=NULL,check.convergence=TRUE,check.convergence.firstrun=NULL,recheck.convergence=TRUE,convtype="Gelman",
 							convtype.Gelman=2,convtype.Geweke=c(0.1,0.5),convtype.alpha=0.05,neff.method="Stan",Ncycles.target=2,props.conv=c(0.25,0.5,0.75),min.Nvalues=300,
 							min.thinmult=1.1,safemultiplier.Nvals=1.2,round.thinmult=TRUE,
-							identifier.to.print="",print.diagnostics=FALSE,print.thinmult=TRUE,innerprint=FALSE,seed=1,remove.fixedchains=TRUE,check.installation=TRUE)
+							identifier.to.print="",print.diagnostics=FALSE,print.thinmult=TRUE,innerprint=FALSE,seed=NULL,remove.fixedchains=TRUE,check.installation=TRUE)
 
 	### checking all the names of arguments of control are in control0; otherwise stops because arguments are not intrepretable
 	if (length(setdiff(names(control),names(control0)))>0)
@@ -536,7 +538,7 @@ CPUtime.btadjust<-0
 
 
 	### putting the control.MCMC argument in the good format in case it is specified partially: same sequence as for control/control0:
-	control.MCMC0<-list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=1000,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),n_cores=NULL,showCompilerOutput=TRUE,buildDerivs=FALSE)
+	control.MCMC0<-list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=-1,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),n_cores=NULL,showCompilerOutput=TRUE,buildDerivs=FALSE)
 	if (length(setdiff(names(control.MCMC),names(control.MCMC0)))>0)
 		{stop("The names of the control.MCMC argument do not match the default names")}
 	if (length(intersect(names(control.MCMC),names(control.MCMC0)))<length(names(control.MCMC0)))
@@ -576,6 +578,11 @@ if (control$check.installation)
 
 		##if control$check.convergence is FALSE, this should be the same for control$recheck.convergence
 		if (!control$check.convergence) {control$recheck.convergence<-FALSE}
+		
+		##if control$seed has more than one elements, keep only the first one
+		if (length(control$seed)>1) {print("control$seed has more than one elements. Reduced to its forst element"); control$seed<-control$seed[[1]]}
+		## stop if control$seed has one element and is not numeric
+		if (length(control$seed)==1 & !is.numeric(control$seed)) {stop("control$seed is not numeric")}
 
 		## checking that control$props.conv are >=0 (if ==0 will double the first diagnostic) and <=1:
 		if (min(control$props.conv)<0) {stop("props.conv values in control should all be nonnegative")}
@@ -647,8 +654,8 @@ if (control$check.installation)
 	  }
 
 	## initial values of variables used on the algorithm
-
-	set.seed(control$seed)
+	if (length(control$seed)>0)
+	{set.seed(control$seed)}
 
 	## initialisation of samplesList
 		## samplesList will be the list that will store the MCMC outputs; one the central objects of this package
@@ -656,7 +663,9 @@ if (control$check.installation)
 	names(samplesList) <- paste0("chain", 1:Nchains)
 
 	numIter.samplesList<-NULL ##will contain the number of iterations between successive values in samplesList; same dimension as the number of rows in samplesList[[1]]
-
+	#recoding control.MCMC$n.adapt if is has its default value of -1 depending on whether we are with Nimble or Jags:
+	if (control.MCMC$n.adapt==-1 & MCMC_language=="Nimble") {control.MCMC$n.adapt=0}
+	if (control.MCMC$n.adapt==-1 & MCMC_language=="Jags") {control.MCMC$n.adapt=1000}
 	index.conv<-1 ## will contain the index (in rows) of the transient period in number of rows in samplesList[[1]] (as diagnosed by convergence diagnostics)
 	thin<-thin.min ## will contain the active thin value
 	nburnin<-nburnin.min
@@ -703,12 +712,21 @@ if (control$check.installation)
 			 code<-textConnection(code)
 			}
 		}
-    if (is.null(inits))
+    if (length(control$seed)>0)
+	{if (is.null(inits))
     {inits<-lapply(1:Nchains,function(x){list(".RNG.name" = control.MCMC$RNG.names[(x-1)%%Nchains+1],".RNG.seed" = control$seed+x)})
     } else
     {
       inits<-lapply(1:Nchains,function(x){c(inits[[x]],list(".RNG.name" = control.MCMC$RNG.names[(x-1)%%Nchains+1],".RNG.seed" = control$seed+x))})
     }
+	} else {
+	if (is.null(inits))
+    {inits<-lapply(1:Nchains,function(x){list(".RNG.name" = control.MCMC$RNG.names[(x-1)%%Nchains+1])})
+    } else
+    {
+      inits<-lapply(1:Nchains,function(x){c(inits[[x]],list(".RNG.name" = control.MCMC$RNG.names[(x-1)%%Nchains+1]))})
+    }
+	}
 		myModel<-rjags::jags.model(code, data=data, n.chains = Nchains, n.adapt = control.MCMC$n.adapt, inits=inits)
 
 	}
@@ -718,7 +736,33 @@ if (control$check.installation)
 	time.MCMC.Preparation<-(Sys.time()-time.MCMC.Preparation0)
 	units(time.MCMC.Preparation)<-"secs"
 	CPUtime.MCMC.Preparation<-CPUtime.MCMC.Preparation+current.CPU.time[1]+current.CPU.time[2]
+	
+	########################################
+	###0-2.1 running first control.MCMC$na.adapt iterations in case MCMC_language=="Nimble"
+	########################################
+	current.CPU.time<-system.time({
+	time.MCMC0<-Sys.time()
+	if (MCMC_language=="Nimble") {
+		for (i in 1:Nchains)
+		{message("      Running adaptation for chain ", i, "...")
+			 if (length(control$seed)>0)
+				{set.seed(control$seed+i)}
+			 Modeltemp <- {if (nimble::is.Cnf(CModelMCMC[[i]]))
+			   CModelMCMC[[i]]$Robject$model$CobjectInterface
+				else CModelMCMC[[i]]$model}
+			 Modeltemp$setInits(inits[[i]])
+			 CModelMCMC[[i]]$run(control.MCMC$n.adapt, nburnin = control.MCMC$n.adapt, thin = thin, progressBar =TRUE)
+			 
+			}
+	}
+	## END: MCMC_language=="Nimble"
 
+	})
+	## END: current.CPU.time<-
+	time.MCMC<-(Sys.time()-time.MCMC0)
+	units(time.MCMC)<-"secs"
+	CPUtime.MCMC<-CPUtime.MCMC+current.CPU.time[1]+current.CPU.time[2]
+	
 	########################################
 	###1.1- First run of MCMCs:
 	########################################
@@ -734,12 +778,7 @@ if (control$check.installation)
 	   nburnin.min0<-nburnin.min
 	   for (i in 1:Nchains)
 			{message("      Running chain ", i, "...")
-			 set.seed(control$seed+i)
-			 Modeltemp <- {if (nimble::is.Cnf(CModelMCMC[[i]]))
-			   CModelMCMC[[i]]$Robject$model$CobjectInterface
-				else CModelMCMC[[i]]$model}
-			 Modeltemp$setInits(inits[[i]])
-			 CModelMCMC[[i]]$run(niter, nburnin = nburnin, thin = thin, progressBar =TRUE)
+			 CModelMCMC[[i]]$run(niter, nburnin=nburnin, progressBar =TRUE)
 			 samplesList[[i]] <- as.matrix(CModelMCMC[[i]]$mvSamples)
 			}
 		samplesList <- coda::as.mcmc.list(lapply(samplesList, coda::as.mcmc))
@@ -922,8 +961,8 @@ if (control$check.installation)
 	########################################
 	### 2.1: specifying the new thinning level and the new number of iterations
 	########################################
-
-		thin<-min(thin*thinmult,thin.max)
+		thin.theoretical<-thin*thinmult
+		thin<-min(thin.theoretical,thin.max)
 
 		#estimation of number of efficient values already available
 		if (!converged|((length(index.conv:size.samplesList)*Nchains.updated)<=control$min.Nvalues))
@@ -942,13 +981,13 @@ if (control$check.installation)
 				## implies that at the end of next run niter.tot would be approximately doubled
 				## except especially if control$time.max might be exceeded
 			if (! converged) {
-				niter<-ceiling(min(c(niter.tot,niter.max-niter.tot,(control$time.max-duration)*0.95*niter.tot/duration)))
+				niter<-ceiling(min(c(niter.tot,niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))
 				if (!previously.converged)
 				{
-				niter<-ceiling(min(c(niter.tot,niter.max-niter.tot,(control$time.max-duration)*0.95*niter.tot/duration)))
+				niter<-ceiling(min(c(niter.tot,niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))
 				} else {
-				#niter<-ceiling(min(c(niter.previous,niter.max-niter.tot,(control$time.max-duration)*0.95*niter.tot/duration)))
-				niter<-ceiling(min(c(round(niter.tot/Ncycles),niter.max-niter.tot,(control$time.max-duration)*0.95*niter.tot/duration)))
+				#niter<-ceiling(min(c(niter.previous,niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))
+				niter<-ceiling(min(c(round(niter.tot/Ncycles),niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))
 				}
 				print("Case of niter update: Non convergence")
 				print("###################################################################################")
@@ -958,7 +997,7 @@ if (control$check.installation)
 				### then add few iterations to just exceed control$min.Nvalues while fulfilling nitex.max & control$time.max conditions
 			if ( converged & ((length(index.conv:size.samplesList)*Nchains.updated)<=control$min.Nvalues))
 			{
-				niter<-ceiling(min(c((control$min.Nvalues-(length(index.conv:size.samplesList)*Nchains.updated)/Nchains.updated)+10,niter.max-niter.tot,(control$time.max-duration)*0.95*niter.tot/duration)))
+				niter<-ceiling(min(c((control$min.Nvalues-(length(index.conv:size.samplesList)*Nchains.updated)/Nchains.updated)+10,niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))
 				print("Case of niter update: Convergence but not enough values after convergence to safely update thin")
 				print("###################################################################################")
 			}
@@ -972,14 +1011,14 @@ if (control$check.installation)
 				{
 					## if (Ncycles+1)/control$Ncycles.target<0.95
 					## then do not plan to reach the number of efficient values in the next Cycle while fulfilling nitex.max & control$time.max conditions
-					niter<-ceiling((Ncycles+1)/control$Ncycles.target*min(c(ceiling((control$safemultiplier.Nvals*neff.max-available.neffs)/Nchains.updated)*thin,niter.max-niter.tot,(control$time.max-duration)*0.95*niter.tot/duration)))
+					niter<-ceiling((Ncycles+1)/control$Ncycles.target*min(c(ceiling((control$safemultiplier.Nvals*neff.max-available.neffs)/Nchains.updated)*thin.theoretical,niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))
 					print("Case of niter update: Convergence but not in the last planned cycle")
 					print("###################################################################################")
 				}
 				else {
 					## if (Ncycles+1)/control$Ncycles.target>=0.95
 					## then plan to reach the number of efficient values in the next Cycle while fulfilling nitex.max & control$time.max conditions
-					niter<-min(c(ceiling((control$safemultiplier.Nvals*neff.max-available.neffs)/Nchains.updated)*thin,niter.max-niter.tot,(control$time.max-duration)*0.95*niter.tot/duration))
+					niter<-min(c(ceiling((control$safemultiplier.Nvals*neff.max-available.neffs)/Nchains.updated)*thin.theoretical,niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration))
 					print("Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle")
 					print("###################################################################################")
 				}
@@ -987,7 +1026,7 @@ if (control$check.installation)
 			## corrections of values of niter in case these values are inadequate
 			if (niter<=10) {niter<-ceiling(min(niter.tot,niter.tot/duration*(0.95*control$time.max-duration)))}
 			#if (niter==Inf){niter<-niter.tot}
-			if (niter==Inf){ceiling(min(c(niter.tot,niter.max-niter.tot,(control$time.max-duration)*0.95*niter.tot/duration)))}
+			if (niter==Inf){ceiling(min(c(niter.tot,niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))}
 			if (niter<=0)
 			{
 				print("Number of planned new iterations non-positive: end of MCMC cycles")
@@ -1033,7 +1072,7 @@ if (control$check.installation)
 				{
 					## if (Ncycles+1)/control$Ncycles.target<0.95
 					## then do not plan to reach the number of efficient values in the next Cycle while fulfilling nitex.max & control$time.max conditions
-					niter<-ceiling((Ncycles+1)/control$Ncycles.target*min(c(ceiling((control$safemultiplier.Nvals*neff.max-available.neffs)/Nchains.updated)*thin,niter.max-niter.tot)))
+					niter<-ceiling((Ncycles+1)/control$Ncycles.target*min(c(ceiling((control$safemultiplier.Nvals*neff.max-available.neffs)/Nchains.updated)*thin.theoretical,niter.max-niter.tot)))
 					print("Case of niter update: Convergence but not in the last planned cycle")
 					print("###################################################################################")
 				}
@@ -1041,7 +1080,7 @@ if (control$check.installation)
 					## if (Ncycles+1)/control$Ncycles.target>=0.95
 					## then plan to reach the number of efficient values in the next Cycle while fulfilling nitex.max & control$time.max conditions
 						#print(paste("case 5bis",available.neffs,diags$Nvals,niter.max-niter.tot, thin))
-					niter<-min(c(ceiling((control$safemultiplier.Nvals*neff.max-available.neffs)/Nchains.updated)*thin,niter.max-niter.tot))
+					niter<-min(c(ceiling((control$safemultiplier.Nvals*neff.max-available.neffs)/Nchains.updated)*thin.theoretical,niter.max-niter.tot))
 					print("Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle")
 					print("###################################################################################")
 				}
@@ -1089,7 +1128,8 @@ if (control$check.installation)
 				{
 					message("      Running chain ", i, ", niter: ", niter, "...")
 						#message("dimension au début: ", dim(as.matrix(CModelMCMC[[i]]$mvSamples)))
-					set.seed(control$seed+i+Nchains)
+					if (length(control$seed)>0)
+						{set.seed(control$seed+i+Nchains)}
 					CModelMCMC[[i]]$run(niter, thin = thin, progressBar =TRUE,reset = FALSE)
 					samplesList[[i]] <- as.matrix(CModelMCMC[[i]]$mvSamples)
 						#message("dimension à la fin: ", dim(as.matrix(CModelMCMC[[i]]$mvSamples)))
@@ -1348,15 +1388,15 @@ if (control$check.installation)
 												conv.max=conv.max,conv.med=conv.med,conv.mean=conv.mean,
 												control=control,control.MCMC=control.MCMC,
 												Nchains=Nchains,final.Nchains=Nchains.updated),
-							final.params=list(converged=converged,burnin=nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]),thin=thin,niter.tot=niter.tot,
+							final.params=list(converged=converged,neffs.reached=neffs.reached,burnin=nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]),thin=thin,niter.tot=niter.tot,
 											duration=total.duration,duration.MCMC.preparation=time.MCMC.Preparation,
-											duration.MCMC.transient=time.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)),
-											duration.MCMC.asymptotic=time.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
+											duration.MCMC.transient=time.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)),
+											duration.MCMC.asymptotic=time.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
 											duration.btadjust=total.duration-time.MCMC.Preparation-time.MCMC,
 											CPUduration=unname(CPUtime.MCMC.Preparation+CPUtime.MCMC+CPUtime.btadjust),
 											CPUduration.MCMC.preparation=unname(CPUtime.MCMC.Preparation),
-											CPUduration.MCMC.transient=unname(CPUtime.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
-											CPUduration.MCMC.asymptotic=unname(CPUtime.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)))),
+											CPUduration.MCMC.transient=unname(CPUtime.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
+											CPUduration.MCMC.asymptotic=unname(CPUtime.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)))),
 											CPUduration.btadjust=unname(CPUtime.btadjust),
 											time_end=Sys.time()),
 							#NB: burnin and niter.tot are in MCMC iteration units for one chain; thin is in MCMC iteration units
@@ -1384,15 +1424,15 @@ if (control$check.installation)
 														conv.max=conv.max,conv.med=conv.med,conv.mean=conv.mean,
 														control=control,control.MCMC=control.MCMC,
 														Nchains=Nchains,final.Nchains=Nchains.updated),
-									final.params=list(converged=converged,burnin=nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]),thin=thin*thin.end,niter.tot=niter.tot,
+									final.params=list(converged=converged,neffs.reached=neffs.reached,burnin=nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]),thin=thin*thin.end,niter.tot=niter.tot,
 													duration=total.duration,duration.MCMC.preparation=time.MCMC.Preparation,
-													duration.MCMC.transient=time.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)),
-													duration.MCMC.asymptotic=time.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
+													duration.MCMC.transient=time.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)),
+													duration.MCMC.asymptotic=time.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
 													duration.btadjust=total.duration-time.MCMC.Preparation-time.MCMC,
 													CPUduration=unname(CPUtime.MCMC.Preparation+CPUtime.MCMC+CPUtime.btadjust),
 													CPUduration.MCMC.preparation=unname(CPUtime.MCMC.Preparation),
-													CPUduration.MCMC.transient=unname(CPUtime.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
-													CPUduration.MCMC.asymptotic=unname(CPUtime.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Jags",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)))),
+													CPUduration.MCMC.transient=unname(CPUtime.MCMC*(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList))),
+													CPUduration.MCMC.asymptotic=unname(CPUtime.MCMC*(1-(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)]))/(ifelse(MCMC_language=="Greta",1,0)*control.MCMC$warmup+ifelse(MCMC_language=="Nimble",1,0)*control.MCMC$n.adapt+nburnin.min0+sum(numIter.samplesList)))),
 													CPUduration.btadjust=unname(CPUtime.btadjust),
 													time_end=Sys.time()),
 									#NB: burnin and niter.tot are in MCMC iteration units for one chain; thin is in MCMC iteration units
@@ -1405,6 +1445,8 @@ if (control$check.installation)
 				attributes(result)<-new.atrributes
 			}
 		}
-
+	if (length(control$seed)>0)
+	{### adding a new seed setting based on current time so that the following of the R sesion will not be influenced by the seed set in the present code
+	set.seed(NULL)}
 	coda::as.mcmc.list(result)
 }
