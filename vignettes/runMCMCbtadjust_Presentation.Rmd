@@ -53,12 +53,13 @@ This function has four main advantages: (i) it saves the analyst's programming t
 Indeed, `runMCMC_btadjust()` uses other Bayesian packages to fit the MCMC. At present, only the `JAGS`, `NIMBLE` and `greta` languages can be used as these are the main Bayesian languages in R known by the package author and that permit to continue an already fitted MCMC - which is required for numerical efficiency. We will here show how to fit and compare a very simple model under these three languages, using the possibilities allowed by `runMCMC_btadjust()`. Our model is one of the simplest statistical model we could think of: inspired from @Kery_2010, we model data of weights of 1,000 Pilgrim falcons (*Falco peregrinus*) simulated from a Gaussian distribution with mean 600 grams and standard error 30 grams:
 
 ```{r Simulating data}
+
 set.seed(1)
 y1000<-rnorm(n=1000,mean=600,sd=30)
 
 ```
 
-This document is made to provide simple examples with the three languages - `JAGS`, `NIMBLE` and `greta`. Yet only the languages that are available/installed on the computer compiling this document  will be developed. And if `NIMBLE` is not available, no example will be developed given that Nimble is the reference example herein.
+This document is made to provide simple examples with the three languages - `JAGS`, `NIMBLE` and `greta`. Yet only the languages among these three that are available/installed on the computer compiling this document  will be developed. And if `NIMBLE` is not available, no example will be developed given that Nimble is the reference example herein.
 
 ```{r, child=if (condition_nimble & condition_rstan) "../man/fragments/Nimble1_alone_fragment.Rmd"}
 ```
@@ -67,6 +68,9 @@ This document is made to provide simple examples with the three languages - `JAG
 ```
 
 ```{r, child=if (condition_nimble & condition_jags & condition_greta & condition_rstan) "../man/fragments/Greta_fragment.Rmd"}
+```
+
+```{r, child=if (condition_nimble & condition_jags & condition_greta & condition_rstan) "../man/fragments/Nimble&Jags2_fragment.Rmd"}
 ```
 
 
@@ -83,3 +87,4 @@ We hope we have convinced the R user of Bayesian models that `runMCMC_btadjust()
 
 
 # References
+

@@ -4,7 +4,7 @@ We now turn to analyzing the same data with the same statistical model using `JA
 
 ```{r Jags Data}
 
-ModelData <-list(mass = y1000, nobs = length(y1000))
+ModelData.Jags <-list(mass = y1000, nobs = length(y1000))
 
 
 ```
@@ -39,7 +39,7 @@ We then launch `runMCMC_btadjust()` with `MCMC_language="Jags"`, specifying argu
 ```{r Jags First model, cache=FALSE}
 
 set.seed(1)
-out.mcmc.Jags<-runMCMC_btadjust(code=modeltotransfer,  data = ModelData, MCMC_language="Jags", 
+out.mcmc.Jags<-runMCMC_btadjust(code=modeltotransfer,  data = ModelData.Jags, MCMC_language="Jags", 
     Nchains=Nchains, params=params, inits=Inits,
     niter.min=1000,niter.max=300000,
     nburnin.min=100,nburnin.max=200000,
@@ -82,9 +82,9 @@ knitr::kable(compar_MCMC_times[1:(dim(compar_MCMC_times)[1]-1),],col.names=c("Ni
 
 ```
 
-The conclusion is that `JAGS` is much faster than `NIMBLE` on this example (row named `duration` in the previous table), due to much less time devoted to MCMC preparation - as well as to burn-in/thinning adjustment (rows named `duration.MCMC.preparation` and `duration.btadjust` in the previous table). Actually there is no adjustment with `JAGS` (`niter.tot` is equal to the initial number of iterations). Yet, `NIMBLE` is quicker regarding MCMC updating by iteration since it took `NIMBLE` less time than `JAGS` for the transient phase (respectively less than twice time for the asymptotic phase) although using more than seven (resp. seventeen) times more iterations than `JAGS`.
+The conclusion is that `JAGS` is much faster than `NIMBLE` on this example (row named `duration` in the previous table), due to much less time devoted to MCMC preparation - as well as to burn-in/thinning adjustment (rows named `duration.MCMC.preparation` and `duration.btadjust` in the previous table). Actually there is no adjustment with `JAGS` (`niter.tot` is equal to the initial number of iterations). Yet, `NIMBLE` is quicker regarding MCMC updating by iteration since it took `NIMBLE` less time than `JAGS` for the transient phase (respectively less than twice time for the asymptotic phase) although using more than `r as.double(compar_MCMC_times["burnin",1])/as.double(compar_MCMC_times["burnin",2])` (resp. `r (as.double(compar_MCMC_times["niter.tot",1])-as.double(compar_MCMC_times["burnin",1]))/(as.double(compar_MCMC_times["niter.tot",2])-as.double(compar_MCMC_times["burnin",2]))` for the asymptotic phase) times more iterations than `JAGS`.
 
-At first sight, we would also conclude that MCMC efficiency per effective value is also better with `NIMBLE` since both languages had the same target for the minimum number of effective value - 1,000 - and the total MCMC time was lower with `NIMBLE`. Yet, a more rigorous comparison finds the reverse result:
+At first sight, we would also conclude that MCMC efficiency per effective value is also better with `NIMBLE` since both languages had the same target for the minimum number of effective value - 1,000 - and the total MCMC time was lower with `NIMBLE`. Yet, the number of effective values are different:
 
 ```{r Nimble-Jags second comparison efficiency, echo=FALSE}
 compar_MCMC_times<-format(cbind(c(attributes(out.mcmc)$final.diags$neff_synth[,"min"
@@ -101,5 +101,7 @@ knitr::kable(compar_MCMC_times,col.names=c("Nimble.default","Jags"),align="r",ca
 
 ```
 
-Indeed, `JAGS` with just the first iterations produced a high number of effective values - actually much bigger than the targeted `neff.min`  - which renders the MCMC time per effective value now lower with `JAGS` than `NIMBLE` with this model (cf. table above).
+`r if (as.double(compar_MCMC_times[1,2])>=as.double(compar_MCMC_times[1,1])) {paste0("Indeed, \"JAGS\" with just the first iterations produced a higher number of effective values - actually bigger than the targeted \"neff.min\"  - than \"NIMBLE\".")}`
+`r if (as.double(compar_MCMC_times[2,1])<as.double(compar_MCMC_times[2,2])) { "Yet, the MCMC time per effective value remained lower with \"NIMBLE\" than with \"JAGS\" with this model (cf. table above)."}`
+`r if (as.double(compar_MCMC_times[2,1])>as.double(compar_MCMC_times[2,2])) { "In line with this, the MCMC time per effective value remained lower with \"JAGS\" than with \"NIMBLE\" with this model (cf. table above)."}`
 

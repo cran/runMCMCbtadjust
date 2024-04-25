@@ -120,7 +120,7 @@ table, .body h2 { border-bottom: 1px solid #666; }
 .body .appendix, .appendix ~ h2 { border-bottom-style: dashed; }
 .footnote-ref a::before { content: "["; }
 .footnote-ref a::after { content: "]"; }
-.footnotes::before {
+section.footnotes::before {
   content: "";
   display: block;
   max-width: 20em;
@@ -139,28 +139,27 @@ table, .body h2 { border-bottom: 1px solid #666; }
 </style>
 </head>
 <body>
-<div class="include-before">
-</div>
 <div class="frontmatter">
 <div class="title"><h1>runMCMCbtadjust Presentation</h1></div>
 <div class="author"><h2>Frédéric Gosselin</h2></div>
-<div class="date"><h3>2023-11-12</h3></div>
+<div class="date"><h3>2024-04-25</h3></div>
 </div>
 <div class="body">
 <h1 id="introduction">Introduction</h1>
 <p>This file is meant to present the function <code>runMCMC_btadjust()</code> in the <code>runMCMCbtadjust</code> package. The aim of this function is to run a Markov Chain Monte Carlo (MCMC) for a specified Bayesian model while adapting automatically the burn-in and thinning parameters to meet pre-specified targets in terms of MCMC convergence and number of effective values of MCMC outputs - where the term “number of effective values” for the MCMC outputs refers to sample size adjusted for autocorrelation. This is done in only one call to the function that repeatedly calls the MCMC until criteria for convergence and number of effective values are met. This allows to obtain a MCMC output that is out of the transient phase of the MCMC (convergence) and that contains a pre-specified number of nearly independent draws from the posterior distribution (number of effective values).</p>
 <p>This function has four main advantages: (i) it saves the analyst’s programming time since he/she does not have to repeatedly diagnose and re-run MCMCs until desired levels of convergence and number of effective values are reached; (ii) it allows a minimal, normalized quality control of MCMC outputs by allowing to meet pre-specified levels in terms of convergence and number of quasi-independent values; (iii) it may save computer’s time when compared to cases where we have to restart the MCMC from the beginning if it has not converged or reached the specified number of effective values (as e.g. with <code>runMCMC</code> function in <code>NIMBLE</code>); and (iv) it can be applied with different MCMC R languages.</p>
 <p>Indeed, <code>runMCMC_btadjust()</code> uses other Bayesian packages to fit the MCMC. At present, only the <code>JAGS</code>, <code>NIMBLE</code> and <code>greta</code> languages can be used as these are the main Bayesian languages in R known by the package author and that permit to continue an already fitted MCMC - which is required for numerical efficiency. We will here show how to fit and compare a very simple model under these three languages, using the possibilities allowed by <code>runMCMC_btadjust()</code>. Our model is one of the simplest statistical model we could think of: inspired from @Kery_2010, we model data of weights of 1,000 Pilgrim falcons (<em>Falco peregrinus</em>) simulated from a Gaussian distribution with mean 600 grams and standard error 30 grams:</p>
-<pre><code class="language-r">set.seed(1)
+<pre><code class="language-r">
+set.seed(1)
 y1000&lt;-rnorm(n=1000,mean=600,sd=30)
 </code></pre>
-<p>This document is made to provide simple examples with the three languages - <code>JAGS</code>, <code>NIMBLE</code> and <code>greta</code>. Yet only the languages that are available/installed on the computer compiling this document  will be developed. And if <code>NIMBLE</code> is not available, no example will be developed given that Nimble is the reference example herein.</p>
+<p>This document is made to provide simple examples with the three languages - <code>JAGS</code>, <code>NIMBLE</code> and <code>greta</code>. Yet only the languages among these three that are available/installed on the computer compiling this document  will be developed. And if <code>NIMBLE</code> is not available, no example will be developed given that Nimble is the reference example herein.</p>
 <h2 id="nimble">NIMBLE</h2>
 <p>We start with fitting the example with <code>NIMBLE</code> (cf. <a href="https://r-nimble.org/">https://r-nimble.org/</a>).</p>
 <pre><code class="language-r">
 library(runMCMCbtadjust)
 library(nimble)
-#&gt; Warning: le package 'nimble' a été compilé avec la version R 4.3.1
+#&gt; Warning: le package 'nimble' a été compilé avec la version R 4.3.2
 </code></pre>
 <p>As <code>NIMBLE</code> distinguishes data that have random distributions from other data, we specify two distinct lists to contain these:</p>
 <pre><code class="language-r">
@@ -184,7 +183,8 @@ ModelConsts &lt;- list(nobs = length(y1000))
     }
   })
 </code></pre>
-<p>Our -optional- next step is to specify starting values for model’s parameters. This is done by first writing a function that is repetitively called for each chain. We - also optionally - indicate the names of parameters to be saved and diagnosed in a vector called <code>params</code>:</p>
+<p>The model is a simple linear - and Gaussian - model with only an intercept - actually the same model -for the likelihood section -  as the probabilistic model used to generate the data.</p>
+<p>Our - optional - next step is to specify starting values for model’s parameters. This is done by first writing a function that is repetitively called for each chain. We - also optionally - indicate the names of parameters to be saved and diagnosed in a vector called <code>params</code>:</p>
 <pre><code class="language-r">ModelInits &lt;- function()
 {list (population.mean = rnorm(1,600,90), population.sd = runif(1, 1, 30))}
   
@@ -195,16 +195,20 @@ Inits&lt;-lapply(1:Nchains,function(x){ModelInits()})
 
 #specifying the names of parameters to analyse and save:
 params &lt;- c(&quot;population.mean&quot;, &quot;population.sd&quot;) 
+
+#devising the maximum level allowed for the Geweke diagnostic of convergence (cf. following)
+npars&lt;-length(params)
+Gew.Max&lt;-as.double(format(quantile(sapply(1:100000,function(x,N){max(abs(rnorm(N)))},npars),0.95),digits=3,scientific=FALSE))
 </code></pre>
-<p>We are now ready to launch <code>runMCMC_btadjust()</code>: since we use <code>NIMBLE</code>, we must specify arguments <code>code</code>, <code>data</code>, <code>constants</code> (see below) as well as <code>MCMC_language=&quot;Nimble&quot;</code>. We first do it on one chain (argument <code>Nchains=1</code>) using in the <code>control</code> list argument <code>neff.method=&quot;Coda&quot;</code> to use the <code>Coda</code> method to calculate the number of effective parameters and <code>convtype=&quot;Geweke&quot;</code> to use the Geweke method to diagnose convergence, with the pre-specified maximum - over analyzed parameters - convergence of 1.05 (<code>conv.max=1.05</code>) and the minimum - over analyzed parameters - number of effective values of 1,000 (<code>neff.min=1000</code>). Other arguments that are the same for all MCMC languages include <code>params</code> (parameter names to diagnose and save), <code>inits</code> (initial values), <code>niter.min</code> (minimum number of iterations), <code>niter.max</code> (maximum number of iterations), <code>nburnin.min</code>, <code>nburnin.max</code>   <code>thin.min</code>, <code>thin.max</code> (minimum and maximum number of iterations for respectively the burn-in and thinning parameters):</p>
+<p>We are now ready to launch <code>runMCMC_btadjust()</code>: since we use <code>NIMBLE</code>, we must specify arguments <code>code</code>, <code>data</code>, <code>constants</code> (see below), which are specific to <code>NIMBLE</code>, as well as <code>MCMC_language=&quot;Nimble&quot;</code>. The next arguments of <code>runMCMC_btadjust()</code> that we will here work with are for most of them shared among <code>MCMC_language</code>s. We first do it on one chain (argument <code>Nchains=1</code>) using in the <code>control</code> list argument <code>neff.method=&quot;Coda&quot;</code> to use the <code>Coda</code> method to calculate the number of effective parameters and <code>convtype=&quot;Geweke&quot;</code> to use the Geweke method to diagnose convergence, with the pre-specified maximum - over analyzed parameters - convergence of 2.23 (<code>conv.max=</code>2.23) - coming from simulated 95% quantiles from standard gaussian distributions that Geweke diagnostics should theoretically follow - and the minimum - over analyzed parameters - number of effective values of 1,000 (<code>neff.min=1000</code>). Other arguments that are the same for all MCMC languages include <code>params</code> (parameter names to diagnose and save), <code>inits</code> (initial values - which are here provided through the list of values <code>Inits[1]</code> but could also have been specified through a function giving  such a result - such as here <code>ModInits</code>), <code>niter.min</code> (minimum number of iterations), <code>niter.max</code> (maximum number of iterations), <code>nburnin.min</code>, <code>nburnin.max</code>   <code>thin.min</code>, <code>thin.max</code> (minimum and maximum number of iterations for respectively the burn-in and thinning parameters):</p>
 <pre><code class="language-r">out.mcmc.Coda.Geweke&lt;-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = ModelData, MCMC_language=&quot;Nimble&quot;,
     Nchains=1, params=params, inits=Inits[1],
     niter.min=1000, niter.max=300000,
     nburnin.min=100, nburnin.max=200000, 
     thin.min=1, thin.max=1000,
-    conv.max=1.05, neff.min=1000,
-    control=list(neff.method=&quot;Coda&quot;, convtype=&quot;Geweke&quot;),
-    control.MCMC=list(showCompilerOutput=FALSE))
+    conv.max=Gew.Max, neff.min=1000,
+    control=list(neff.method=&quot;Coda&quot;, convtype=&quot;Geweke&quot;))
+#&gt; [1] &quot;control$seed is NULL. Replaced by 1&quot;
 #&gt; ===== Monitors =====
 #&gt; thin = 1: population.mean, population.sd
 #&gt; ===== Samplers =====
@@ -214,32 +218,300 @@ params &lt;- c(&quot;population.mean&quot;, &quot;population.sd&quot;)
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; |-------------|-------------|-------------|-------------|
 #&gt; |-------------------------------------------------------|
-#&gt; [1] &quot;Case of niter update: Non convergence&quot;
-#&gt; [1] &quot;###################################################################################&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; |-------------|-------------|-------------|-------------|
 #&gt; |-------------------------------------------------------|
-#&gt; [1] &quot;raw multiplier of thin:  25.63&quot;
+#&gt; [1] &quot;Raw multiplier of thin:  14.897&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  15 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  14 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  13 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  12 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  11 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  10 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  9 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  8 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  7 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  6 :&quot;
+#&gt; [1] &quot;Retained multiplier of thin:  6 :&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; [1] &quot;Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; |-------------|-------------|-------------|-------------|
 #&gt; |-------------------------------------------------------|
-#&gt; [1] &quot;Case of niter update: Non convergence&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;MCMC has reached the required level of convergence.&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;MCMC has reached the required level of effective values.&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+</code></pre>
+<p>The above information printed during running <code>runMCMC_btadjust()</code> is somewhat elusive. It is possible to get more information printed with components <code>identifier.to.print</code>, <code>print.diagnostics</code>, <code>print.thinmult</code> and <code>innerprint</code> of the argument <code>control</code> of <code>runMCMC_btadjust()</code> or the component <code>showCompilerOutput</code> of <code>control.MCMC</code> - this last one being active only with <code>MCMC_language==&quot;Nimble&quot;</code>. See the help file of <code>runMCMC_btadjust()</code> for more information. By default, only <code>print.thinmult</code> is <code>TRUE</code> and therefore activated. We hereafter just show the activation of component <code>print.diagnostics</code> to show the reader that it can produce useful information to better realize what is being done in terms of control of convergence and number of effective values.</p>
+<pre><code class="language-r">out.mcmc.Coda.Geweke.with.print.diagnostics&lt;-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = ModelData, MCMC_language=&quot;Nimble&quot;,
+    Nchains=1, params=params, inits=Inits[1],
+    niter.min=1000, niter.max=300000,
+    nburnin.min=100, nburnin.max=200000, 
+    thin.min=1, thin.max=1000,
+    conv.max=Gew.Max, neff.min=1000,
+    control=list(neff.method=&quot;Coda&quot;, convtype=&quot;Geweke&quot;,print.diagnostics=TRUE))
+#&gt; [1] &quot;control$seed is NULL. Replaced by 1&quot;
+#&gt; ===== Monitors =====
+#&gt; thin = 1: population.mean, population.sd
+#&gt; ===== Samplers =====
+#&gt; RW sampler (2)
+#&gt;   - population.mean
+#&gt;   - population.sd
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; |-------------|-------------|-------------|-------------|
+#&gt; |-------------------------------------------------------|
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;Current state of diagnostics:&quot;
+#&gt;                 Nchains thin niter.tot Nvalues nu.burn
+#&gt; MCMC parameters       1    1      1000     900     101
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt;          max median mean      name_max prop_ab_p975 prop_ab_p995 prop_ab_p9995
+#&gt; Geweke 1.388   1.15 1.15 population.sd            0            0             0
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt;                     min median   mean        name_min prop_bel_1000
+#&gt; Neff             53.312 95.868 95.868 population.mean             1
+#&gt;                  prop_bel_5000 prop_bel_10000
+#&gt; Neff                         1              1
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; |-------------|-------------|-------------|-------------|
 #&gt; |-------------------------------------------------------|
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;Current state of diagnostics:&quot;
+#&gt;                 Nchains thin niter.tot Nvalues nu.burn
+#&gt; MCMC parameters       1    1      2000    1900     101
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt;          max median mean      name_max prop_ab_p975 prop_ab_p995 prop_ab_p9995
+#&gt; Geweke 1.537   1.22 1.22 population.sd            0            0             0
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt;                      min median   mean        name_min prop_bel_1000
+#&gt; Neff             127.546 241.16 241.16 population.mean             1
+#&gt;                  prop_bel_5000 prop_bel_10000
+#&gt; Neff                         1              1
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;Raw multiplier of thin:  14.897&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  15 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  14 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  13 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  12 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  11 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  10 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  9 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  8 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  7 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  6 :&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;Current state of diagnostics:&quot;
+#&gt;                 Nchains thin niter.tot Nvalues nu.burn
+#&gt; MCMC parameters       1    6      2000     317     101
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt;          max median  mean      name_max prop_ab_p975 prop_ab_p995 prop_ab_p9995
+#&gt; Geweke 0.912  0.891 0.891 population.sd            0            0             0
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt;                      min  median    mean        name_min prop_bel_1000
+#&gt; Neff             103.353 158.328 158.328 population.mean             1
+#&gt;                  prop_bel_5000 prop_bel_10000
+#&gt; Neff                         1              1
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;Retained multiplier of thin:  6 :&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; |-------------|-------------|-------------|-------------|
+#&gt; |-------------------------------------------------------|
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;Current state of diagnostics:&quot;
+#&gt;                 Nchains thin niter.tot Nvalues nu.burn
+#&gt; MCMC parameters       1    6     18455    3059     101
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt;          max median mean        name_max prop_ab_p975 prop_ab_p995
+#&gt; Geweke 0.381   0.24 0.24 population.mean            0            0
+#&gt;        prop_ab_p9995
+#&gt; Geweke             0
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt;                       min   median     mean        name_min prop_bel_1000
+#&gt; Neff             1848.939 2132.664 2132.664 population.mean             0
+#&gt;                  prop_bel_5000 prop_bel_10000
+#&gt; Neff                         1              1
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;MCMC has reached the required level of convergence.&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;MCMC has reached the required level of effective values.&quot;
+#&gt; [1] &quot;###################################################################################&quot;
 </code></pre>
-<p>We then run the MCMC with <code>Nchains</code> MCMC chains, the -default- Gelman-Rubin diagnostic of convergence and the -default- <code>rstan</code> method for calculating the number of effective values:</p>
+<p>We advise the reader to use the <code>print.diagnostics</code> functionality but do not in the following to keep the length of the document to a minimum.</p>
+<p>Before turning to other models, let us depict the nature of the result of <code>runMCMC_btadjust()</code> function. The length of the output 1 is always equal to the number of Markov Chains - argument <code>Nchains</code>. Its class is mcmc.list - a type of object classical for MCMC outputs and defined in the <code>coda</code> package. Each component of this list contains the successive retained values for each saved parameter as well as attributes that give information on the MCMC they come from - see the beginning of the first component below:</p>
+<pre><code class="language-r">
+length(out.mcmc.Coda.Geweke)
+#&gt; [1] 1
+
+class(out.mcmc.Coda.Geweke)
+#&gt; [1] &quot;mcmc.list&quot;
+
+head(out.mcmc.Coda.Geweke[[1]])
+#&gt; Markov Chain Monte Carlo (MCMC) output:
+#&gt; Start = 100 
+#&gt; End = 136 
+#&gt; Thinning interval = 6 
+#&gt;      population.mean population.sd
+#&gt; [1,]        584.7840      34.71150
+#&gt; [2,]        587.4004      34.86733
+#&gt; [3,]        589.9136      33.16044
+#&gt; [4,]        593.8190      31.64323
+#&gt; [5,]        597.1063      31.45800
+#&gt; [6,]        597.4063      31.51227
+#&gt; [7,]        600.5426      30.18588
+</code></pre>
+<p>The output however has extra information in its <code>attributes</code>: indeed, <code>attributes</code> has 5 components, whose name are: call.params, final.params, final.diags, sessionInfo, class: in addition to containing the class of the object - here “mcmc.list”, these attributes include information on the R session in which the function was executed - component sessionInfo, the final diagnostics of the model - component final.diags -, the parameters used in the call of the <code>runMCMC_btadjust()</code> function - component call.params - and finally the final “parameters” of the function - component final.params. In case <code>MCMC_language</code> is not “Greta”, the call.params component contains either the entire data and /or the constants or a summary of these (to keep the output to a controlled object size) - this choice is controlled by the component <code>save.data</code> of parameter <code>control</code>. The component final.params has a series of heterogeneous parameters including whether the model has converged, has reached its targets in terms of numbers of effective values…, as well as information in terms of duration of the different sections of the analysis - which we will use in the sequence of this document. See the help file for more information as well as the below printing. Finally, the sessionInfo component has many interesting info relative to the context in which the function <code>runMCMC_btadjust()</code> was executed (including platform, version of R, versions of packages…).</p>
+<pre><code class="language-r">
+names(attributes(out.mcmc.Coda.Geweke))
+#&gt; [1] &quot;call.params&quot;  &quot;final.params&quot; &quot;final.diags&quot;  &quot;sessionInfo&quot;  &quot;class&quot;
+
+names(attributes(out.mcmc.Coda.Geweke)$package.versions)
+#&gt; NULL
+
+attributes(out.mcmc.Coda.Geweke)$final.params
+#&gt; $converged
+#&gt; [1] TRUE
+#&gt; 
+#&gt; $neffs.reached
+#&gt; [1] TRUE
+#&gt; 
+#&gt; $final.Nchains
+#&gt; [1] 1
+#&gt; 
+#&gt; $burnin
+#&gt; [1] 100
+#&gt; 
+#&gt; $thin
+#&gt; [1] 6
+#&gt; 
+#&gt; $niter.tot
+#&gt; [1] 18455
+#&gt; 
+#&gt; $WAIC
+#&gt; NULL
+#&gt; 
+#&gt; $extraResults
+#&gt; NULL
+#&gt; 
+#&gt; $Temps
+#&gt; $Temps$chain1
+#&gt; NULL
+#&gt; 
+#&gt; 
+#&gt; $duration
+#&gt; Time difference of 21.81957 secs
+#&gt; 
+#&gt; $duration.MCMC.preparation
+#&gt; Time difference of 15.97213 secs
+#&gt; 
+#&gt; $duration.MCMC.transient
+#&gt; Time difference of 0.008876192 secs
+#&gt; 
+#&gt; $duration.MCMC.asymptotic
+#&gt; Time difference of 1.628959 secs
+#&gt; 
+#&gt; $duration.MCMC.after
+#&gt; Time difference of 6.41346e-05 secs
+#&gt; 
+#&gt; $duration.btadjust
+#&gt; Time difference of 4.209543 secs
+#&gt; 
+#&gt; $CPUduration
+#&gt; [1] 7.71
+#&gt; 
+#&gt; $CPUduration.MCMC.preparation
+#&gt; [1] 5.57
+#&gt; 
+#&gt; $CPUduration.MCMC.transient
+#&gt; [1] 0.008779536
+#&gt; 
+#&gt; $CPUduration.MCMC.asymptotic
+#&gt; [1] 1.61122
+#&gt; 
+#&gt; $CPUduration.MCMC.after
+#&gt; [1] 0
+#&gt; 
+#&gt; $CPUduration.btadjust
+#&gt; [1] 0.52
+#&gt; 
+#&gt; $childCPUduration
+#&gt; [1] NA
+#&gt; 
+#&gt; $childCPUduration.MCMC.preparation
+#&gt; [1] NA
+#&gt; 
+#&gt; $childCPUduration.MCMC.transient
+#&gt; [1] NA
+#&gt; 
+#&gt; $childCPUduration.MCMC.asymptotic
+#&gt; [1] NA
+#&gt; 
+#&gt; $childCPUduration.MCMC.after
+#&gt; [1] NA
+#&gt; 
+#&gt; $childCPUduration.btadjust
+#&gt; [1] NA
+#&gt; 
+#&gt; $time_end
+#&gt; [1] &quot;2024-04-25 10:50:38 CEST&quot;
+
+attributes(out.mcmc.Coda.Geweke)$sessionInfo
+#&gt; R version 4.3.1 (2023-06-16 ucrt)
+#&gt; Platform: x86_64-w64-mingw32/x64 (64-bit)
+#&gt; Running under: Windows 10 x64 (build 19045)
+#&gt; 
+#&gt; Matrix products: default
+#&gt; 
+#&gt; 
+#&gt; locale:
+#&gt; [1] LC_COLLATE=C                   LC_CTYPE=French_France.utf8   
+#&gt; [3] LC_MONETARY=French_France.utf8 LC_NUMERIC=C                  
+#&gt; [5] LC_TIME=French_France.utf8    
+#&gt; 
+#&gt; time zone: Europe/Paris
+#&gt; tzcode source: internal
+#&gt; 
+#&gt; attached base packages:
+#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     
+#&gt; 
+#&gt; other attached packages:
+#&gt; [1] nimble_1.0.1          runMCMCbtadjust_1.1.0
+#&gt; 
+#&gt; loaded via a namespace (and not attached):
+#&gt;  [1] Matrix_1.6-4        jsonlite_1.8.8      compiler_4.3.1     
+#&gt;  [4] crayon_1.5.2        Rcpp_1.0.11         tensorflow_2.14.0  
+#&gt;  [7] parallel_4.3.1      greta_0.4.5         callr_3.7.3        
+#&gt; [10] globals_0.16.2      progress_1.2.3      tfruns_1.5.1       
+#&gt; [13] png_0.1-8           reticulate_1.34.0   lattice_0.21-8     
+#&gt; [16] coda_0.19-4         R6_2.5.1            igraph_1.5.1       
+#&gt; [19] knitr_1.45          future_1.33.1       rlang_1.1.2        
+#&gt; [22] xfun_0.41           cli_3.6.1           withr_2.5.2        
+#&gt; [25] magrittr_2.0.3      ps_1.7.5            digest_0.6.33      
+#&gt; [28] grid_4.3.1          processx_3.8.2      rstudioapi_0.15.0  
+#&gt; [31] base64enc_0.1-3     rappdirs_0.3.3      hms_1.1.3          
+#&gt; [34] lifecycle_1.0.4     runjags_2.2.2-4     prettyunits_1.2.0  
+#&gt; [37] vctrs_0.6.4         pracma_2.4.4        glue_1.6.2         
+#&gt; [40] evaluate_0.23       numDeriv_2016.8-1.1 whisker_0.4.1      
+#&gt; [43] listenv_0.9.1       codetools_0.2-19    parallelly_1.37.0  
+#&gt; [46] tools_4.3.1         pkgconfig_2.0.3
+</code></pre>
+<p>We then run the MCMC with <code>Nchains</code> MCMC chains, the - default - Gelman-Rubin diagnostic of convergence and the -default- <code>rstan</code> method for calculating the number of effective values:</p>
 <pre><code class="language-r">out.mcmc&lt;-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = ModelData, MCMC_language=&quot;Nimble&quot;,
     Nchains=Nchains, params=params, inits=Inits,
     niter.min=1000, niter.max=300000,
     nburnin.min=100, nburnin.max=200000, 
     thin.min=1, thin.max=1000,
-    conv.max=1.05, neff.min=1000,
-    control.MCMC=list(showCompilerOutput=FALSE))
+    conv.max=1.05, neff.min=1000)
+#&gt; [1] &quot;control$seed is NULL. Replaced by 1&quot;
 #&gt; ===== Monitors =====
 #&gt; thin = 1: population.mean, population.sd
 #&gt; ===== Samplers =====
@@ -265,8 +537,6 @@ params &lt;- c(&quot;population.mean&quot;, &quot;population.sd&quot;)
 #&gt; |-------------------------------------------------------|
 #&gt; |-------------|-------------|-------------|-------------|
 #&gt; |-------------------------------------------------------|
-#&gt; [1] &quot;Case of niter update: Non convergence&quot;
-#&gt; [1] &quot;###################################################################################&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; |-------------|-------------|-------------|-------------|
 #&gt; |-------------------------------------------------------|
@@ -274,7 +544,10 @@ params &lt;- c(&quot;population.mean&quot;, &quot;population.sd&quot;)
 #&gt; |-------------------------------------------------------|
 #&gt; |-------------|-------------|-------------|-------------|
 #&gt; |-------------------------------------------------------|
-#&gt; [1] &quot;raw multiplier of thin:  4.791&quot;
+#&gt; [1] &quot;Raw multiplier of thin:  4.796&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  5 :&quot;
+#&gt; [1] &quot;Retained multiplier of thin:  5 :&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; [1] &quot;Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle&quot;
 #&gt; [1] &quot;###################################################################################&quot;
@@ -285,17 +558,11 @@ params &lt;- c(&quot;population.mean&quot;, &quot;population.sd&quot;)
 #&gt; |-------------------------------------------------------|
 #&gt; |-------------|-------------|-------------|-------------|
 #&gt; |-------------------------------------------------------|
-#&gt; [1] &quot;raw multiplier of thin:  1.338&quot;
 #&gt; [1] &quot;###################################################################################&quot;
-#&gt; [1] &quot;Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle&quot;
+#&gt; [1] &quot;MCMC has reached the required level of convergence.&quot;
 #&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;MCMC has reached the required level of effective values.&quot;
 #&gt; [1] &quot;###################################################################################&quot;
-#&gt; |-------------|-------------|-------------|-------------|
-#&gt; |-------------------------------------------------------|
-#&gt; |-------------|-------------|-------------|-------------|
-#&gt; |-------------------------------------------------------|
-#&gt; |-------------|-------------|-------------|-------------|
-#&gt; |-------------------------------------------------------|
 </code></pre>
 <p>We compare the characteristics of the two MCMCs, both in terms of burn-in, thinning parameter, number of iterations and in terms of time (both total time and CPU time).</p>
 <p>Table: Comparison of the efficiency of first two NIMBLE models:</p>
@@ -310,92 +577,136 @@ params &lt;- c(&quot;population.mean&quot;, &quot;population.sd&quot;)
 <tbody>
 <tr>
 <td align="left">converged</td>
-<td align="right">1.000000</td>
-<td align="right">1.000000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
 </tr>
 <tr>
 <td align="left">neffs.reached</td>
-<td align="right">1.000000</td>
-<td align="right">1.000000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
+</tr>
+<tr>
+<td align="left">final.Nchains</td>
+<td align="right">1.00000000</td>
+<td align="right">3.00000000</td>
 </tr>
 <tr>
 <td align="left">burnin</td>
-<td align="right">102.000000</td>
-<td align="right">575.000000</td>
+<td align="right">100.00000000</td>
+<td align="right">575.00000000</td>
 </tr>
 <tr>
 <td align="left">thin</td>
-<td align="right">26.000000</td>
-<td align="right">5.000000</td>
+<td align="right">6.00000000</td>
+<td align="right">5.00000000</td>
 </tr>
 <tr>
 <td align="left">niter.tot</td>
-<td align="right">41701.000000</td>
-<td align="right">3065.000000</td>
+<td align="right">18455.00000000</td>
+<td align="right">2955.00000000</td>
 </tr>
 <tr>
 <td align="left">duration</td>
-<td align="right">31.190509</td>
-<td align="right">60.680501</td>
+<td align="right">21.81957293</td>
+<td align="right">41.27244711</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.preparation</td>
-<td align="right">24.184504</td>
-<td align="right">54.622998</td>
+<td align="right">15.97213101</td>
+<td align="right">32.59623289</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.transient</td>
-<td align="right">0.009065</td>
-<td align="right">0.158048</td>
+<td align="right">0.00887619</td>
+<td align="right">0.16122569</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.asymptotic</td>
-<td align="right">3.694719</td>
-<td align="right">0.684417</td>
+<td align="right">1.62895883</td>
+<td align="right">0.66733418</td>
+</tr>
+<tr>
+<td align="left">duration.MCMC.after</td>
+<td align="right">0.00006413</td>
+<td align="right">0.00004601</td>
 </tr>
 <tr>
 <td align="left">duration.btadjust</td>
-<td align="right">3.302221</td>
-<td align="right">5.215039</td>
+<td align="right">4.20954275</td>
+<td align="right">7.84760833</td>
 </tr>
 <tr>
 <td align="left">CPUduration</td>
-<td align="right">10.440000</td>
-<td align="right">15.410000</td>
+<td align="right">7.71000000</td>
+<td align="right">10.92000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.preparation</td>
-<td align="right">6.190000</td>
-<td align="right">13.360000</td>
+<td align="right">5.57000000</td>
+<td align="right">7.67000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.transient</td>
-<td align="right">0.009105</td>
-<td align="right">0.165090</td>
+<td align="right">0.00877954</td>
+<td align="right">0.15566836</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.asymptotic</td>
-<td align="right">3.710895</td>
-<td align="right">0.714910</td>
+<td align="right">1.61122046</td>
+<td align="right">0.64433164</td>
+</tr>
+<tr>
+<td align="left">CPUduration.MCMC.after</td>
+<td align="right">0.00000000</td>
+<td align="right">0.00000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.btadjust</td>
-<td align="right">0.530000</td>
-<td align="right">1.170000</td>
+<td align="right">0.52000000</td>
+<td align="right">2.45000000</td>
+</tr>
+<tr>
+<td align="left">childCPUduration</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.preparation</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.transient</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.asymptotic</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.after</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.btadjust</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
 </tr>
 </tbody>
 </table>
-<p>We acknowledge that the Coda.Geweke algorithm takes much less time (rows named <code>duration</code> and <code>CPUduration</code> in the previous table) than the classical setting  to prepare data (rows named <code>duration.MCMC.preparation</code> and <code>CPUduration.MCMC.preparation</code>)- as <code>NIMBLE</code> takes quite a lot of time to prepare each MCMC chain - and we have 3 chains to prepare in the default setting compared to 1 with Geweke.</p>
-<p>We also notice that the Coda.Geweke algorithm uses more time (<code>duration.MCMC.transient</code> and <code>CPUduration.MCMC.transient</code>) and iterations (<code>burnin</code>) to converge while the default setting takes more time for the asymptotic phase (<code>duration.MCMC.asymptotic</code> and <code>CPUduration.MCMC.asymptotic</code>), linked to a greater thinning parameter (<code>thin</code>). This transient part should be linked to the different behaviors between Geweke and Gelman-Rubin convergence diagnostics, while the differences in thinning parameters might be linked to the different methods in calculating the number of effective parameters. We therefore run a third MCMC on one chain with Geweke diagnostic but the default, rstan method for number of effective values.</p>
+<p>We acknowledge that the Coda.Geweke algorithm takes much less time (rows named “duration” and “CPUduration” in the previous table) than the classical setting to prepare data (rows named “duration.MCMC.preparation” and “CPUduration.MCMC.preparation”)- as NIMBLE takes quite a lot of time to prepare each MCMC chain - and we have 3 chains to prepare in the default setting compared to 1 with Geweke.</p>
 <pre><code class="language-r">
 out.mcmc.Geweke&lt;-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = ModelData, MCMC_language=&quot;Nimble&quot;,
     Nchains=1, params=params, inits=Inits[1],
     niter.min=1000, niter.max=300000,
     nburnin.min=100, nburnin.max=200000, 
     thin.min=1, thin.max=1000,
-    conv.max=1.05, neff.min=1000,
-    control=list(convtype=&quot;Geweke&quot;),
-    control.MCMC=list(showCompilerOutput=FALSE))
+    conv.max=Gew.Max, neff.min=1000,
+    control=list(convtype=&quot;Geweke&quot;))
+#&gt; [1] &quot;control$seed is NULL. Replaced by 1&quot;
 #&gt; ===== Monitors =====
 #&gt; thin = 1: population.mean, population.sd
 #&gt; ===== Samplers =====
@@ -405,25 +716,32 @@ out.mcmc.Geweke&lt;-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, da
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; |-------------|-------------|-------------|-------------|
 #&gt; |-------------------------------------------------------|
-#&gt; [1] &quot;Case of niter update: Non convergence&quot;
-#&gt; [1] &quot;###################################################################################&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; |-------------|-------------|-------------|-------------|
 #&gt; |-------------------------------------------------------|
-#&gt; [1] &quot;raw multiplier of thin:  4.533&quot;
+#&gt; [1] &quot;Raw multiplier of thin:  13.571&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  14 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  13 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  12 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  11 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  10 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  9 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  8 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  7 :&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  6 :&quot;
+#&gt; [1] &quot;Retained multiplier of thin:  6 :&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; [1] &quot;Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; |-------------|-------------|-------------|-------------|
 #&gt; |-------------------------------------------------------|
-#&gt; [1] &quot;raw multiplier of thin:  1.251&quot;
 #&gt; [1] &quot;###################################################################################&quot;
-#&gt; [1] &quot;Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle&quot;
+#&gt; [1] &quot;MCMC has reached the required level of convergence.&quot;
 #&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;MCMC has reached the required level of effective values.&quot;
 #&gt; [1] &quot;###################################################################################&quot;
-#&gt; |-------------|-------------|-------------|-------------|
-#&gt; |-------------------------------------------------------|
 </code></pre>
 <p>We compare the characteristics of the three <code>NIMBLE</code> MCMCs,</p>
 <p>Table: Comparison of the efficiency of the three NIMBLE models:</p>
@@ -439,97 +757,151 @@ out.mcmc.Geweke&lt;-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, da
 <tbody>
 <tr>
 <td align="left">converged</td>
-<td align="right">1.000000</td>
-<td align="right">1.000000</td>
-<td align="right">1.000000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
 </tr>
 <tr>
 <td align="left">neffs.reached</td>
-<td align="right">1.000000</td>
-<td align="right">1.000000</td>
-<td align="right">1.000000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
+</tr>
+<tr>
+<td align="left">final.Nchains</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
+<td align="right">3.00000000</td>
 </tr>
 <tr>
 <td align="left">burnin</td>
-<td align="right">102.000000</td>
-<td align="right">1525.000000</td>
-<td align="right">575.000000</td>
+<td align="right">100.00000000</td>
+<td align="right">100.00000000</td>
+<td align="right">575.00000000</td>
 </tr>
 <tr>
 <td align="left">thin</td>
-<td align="right">26.000000</td>
-<td align="right">5.000000</td>
-<td align="right">5.000000</td>
+<td align="right">6.00000000</td>
+<td align="right">6.00000000</td>
+<td align="right">5.00000000</td>
 </tr>
 <tr>
 <td align="left">niter.tot</td>
-<td align="right">41701.000000</td>
-<td align="right">8720.000000</td>
-<td align="right">3065.000000</td>
+<td align="right">18455.00000000</td>
+<td align="right">17232.00000000</td>
+<td align="right">2955.00000000</td>
 </tr>
 <tr>
 <td align="left">duration</td>
-<td align="right">31.190509</td>
-<td align="right">24.313382</td>
-<td align="right">60.680501</td>
+<td align="right">21.81957293</td>
+<td align="right">18.75002503</td>
+<td align="right">41.27244711</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.preparation</td>
-<td align="right">24.184504</td>
-<td align="right">18.539179</td>
-<td align="right">54.622998</td>
+<td align="right">15.97213101</td>
+<td align="right">11.06818104</td>
+<td align="right">32.59623289</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.transient</td>
-<td align="right">0.009065</td>
-<td align="right">0.143196</td>
-<td align="right">0.158048</td>
+<td align="right">0.00887619</td>
+<td align="right">0.00950664</td>
+<td align="right">0.16122569</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.asymptotic</td>
-<td align="right">3.694719</td>
-<td align="right">0.675605</td>
-<td align="right">0.684417</td>
+<td align="right">1.62895883</td>
+<td align="right">1.62829668</td>
+<td align="right">0.66733418</td>
+</tr>
+<tr>
+<td align="left">duration.MCMC.after</td>
+<td align="right">0.00006413</td>
+<td align="right">0.00004697</td>
+<td align="right">0.00004601</td>
 </tr>
 <tr>
 <td align="left">duration.btadjust</td>
-<td align="right">3.302221</td>
-<td align="right">4.955402</td>
-<td align="right">5.215039</td>
+<td align="right">4.20954275</td>
+<td align="right">6.04399371</td>
+<td align="right">7.84760833</td>
 </tr>
 <tr>
 <td align="left">CPUduration</td>
-<td align="right">10.440000</td>
-<td align="right">5.670000</td>
-<td align="right">15.410000</td>
+<td align="right">7.71000000</td>
+<td align="right">4.41000000</td>
+<td align="right">10.92000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.preparation</td>
-<td align="right">6.190000</td>
-<td align="right">4.380000</td>
-<td align="right">13.360000</td>
+<td align="right">5.57000000</td>
+<td align="right">2.54000000</td>
+<td align="right">7.67000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.transient</td>
-<td align="right">0.009105</td>
-<td align="right">0.143406</td>
-<td align="right">0.165090</td>
+<td align="right">0.00877954</td>
+<td align="right">0.00946134</td>
+<td align="right">0.15566836</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.asymptotic</td>
-<td align="right">3.710895</td>
-<td align="right">0.676594</td>
-<td align="right">0.714910</td>
+<td align="right">1.61122046</td>
+<td align="right">1.62053866</td>
+<td align="right">0.64433164</td>
+</tr>
+<tr>
+<td align="left">CPUduration.MCMC.after</td>
+<td align="right">0.00000000</td>
+<td align="right">0.00000000</td>
+<td align="right">0.00000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.btadjust</td>
-<td align="right">0.530000</td>
-<td align="right">0.470000</td>
-<td align="right">1.170000</td>
+<td align="right">0.52000000</td>
+<td align="right">0.24000000</td>
+<td align="right">2.45000000</td>
+</tr>
+<tr>
+<td align="left">childCPUduration</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.preparation</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.transient</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.asymptotic</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.after</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.btadjust</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
 </tr>
 </tbody>
 </table>
-<p>Results do not corroborate our above expectations: indeed, first the Geweke model does not converge within the same number of iterations as the Coda.Geweke one (row <code>burnin</code>), which is strange since they use the same method for diagnosing convergence and the same seed. Second, the thinning parameter was not increased when changing from Coda.Geweke to Geweke as expected above, but actually decreased (row <code>thin</code>).</p>
+<p>Results did not completely corroborate our above expectations: the thinning parameter was not increased when changing from Coda.Geweke to Geweke as expected above (row “thin”).</p>
 <p>We now turn to the comparison of the statistical parameter outputs. We use two sample Kolmogorov-Smirnov tests to compare each parameter by pairs of MCMC methods:</p>
 <p>Table: P-values of paired Kolmogorov-Smirnov tests of output parameters (columns) between the first three NIMBLE models (rows):</p>
 <table>
@@ -543,22 +915,22 @@ out.mcmc.Geweke&lt;-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, da
 <tbody>
 <tr>
 <td align="left">default vs. Geweke</td>
-<td align="right">0.01245</td>
-<td align="right">0.19455</td>
+<td align="right">0.2004</td>
+<td align="right">0.3160</td>
 </tr>
 <tr>
 <td align="left">Coda.Geweke vs. Geweke</td>
-<td align="right">0.11718</td>
-<td align="right">0.52490</td>
+<td align="right">1.0000</td>
+<td align="right">1.0000</td>
 </tr>
 <tr>
 <td align="left">Default vs. Coda.Geweke</td>
-<td align="right">0.29689</td>
-<td align="right">0.68044</td>
+<td align="right">0.1554</td>
+<td align="right">0.2840</td>
 </tr>
 </tbody>
 </table>
-<p>The p-values associated to the KS tests are not very small - only one out of six is near 0.05. This indicates that the MCMC outputs can be considered as being drawn from the same distributions.</p>
+<p>The p-values associated to the KS tests are not very small. This indicates that the MCMC outputs can be considered as being drawn from the same distributions.</p>
 <p>These parameters are summarized in the next tables.</p>
 <p>Table: Summary of the statistical parameters of the Nimble Coda.Geweke model:</p>
 <table>
@@ -574,17 +946,17 @@ out.mcmc.Geweke&lt;-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, da
 <tbody>
 <tr>
 <td align="left">population.mean</td>
-<td align="right">599.602</td>
-<td align="right">1.111</td>
-<td align="right">0.028</td>
-<td align="right">0.029</td>
+<td align="right">599.607</td>
+<td align="right">1.052</td>
+<td align="right">0.019</td>
+<td align="right">0.024</td>
 </tr>
 <tr>
 <td align="left">population.sd</td>
-<td align="right">31.090</td>
-<td align="right">0.726</td>
-<td align="right">0.018</td>
-<td align="right">0.018</td>
+<td align="right">31.093</td>
+<td align="right">0.698</td>
+<td align="right">0.013</td>
+<td align="right">0.014</td>
 </tr>
 </tbody>
 </table>
@@ -602,17 +974,17 @@ out.mcmc.Geweke&lt;-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, da
 <tbody>
 <tr>
 <td align="left">population.mean</td>
-<td align="right">599.688</td>
-<td align="right">0.979</td>
-<td align="right">0.026</td>
-<td align="right">0.028</td>
+<td align="right">599.610</td>
+<td align="right">1.059</td>
+<td align="right">0.020</td>
+<td align="right">0.025</td>
 </tr>
 <tr>
 <td align="left">population.sd</td>
-<td align="right">31.081</td>
-<td align="right">0.697</td>
-<td align="right">0.018</td>
-<td align="right">0.021</td>
+<td align="right">31.090</td>
+<td align="right">0.698</td>
+<td align="right">0.013</td>
+<td align="right">0.015</td>
 </tr>
 </tbody>
 </table>
@@ -630,17 +1002,17 @@ out.mcmc.Geweke&lt;-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, da
 <tbody>
 <tr>
 <td align="left">population.mean</td>
-<td align="right">599.589</td>
-<td align="right">0.939</td>
-<td align="right">0.024</td>
-<td align="right">0.025</td>
+<td align="right">599.686</td>
+<td align="right">0.968</td>
+<td align="right">0.026</td>
+<td align="right">0.029</td>
 </tr>
 <tr>
 <td align="left">population.sd</td>
-<td align="right">31.112</td>
-<td align="right">0.691</td>
-<td align="right">0.018</td>
-<td align="right">0.020</td>
+<td align="right">31.078</td>
+<td align="right">0.718</td>
+<td align="right">0.019</td>
+<td align="right">0.019</td>
 </tr>
 </tbody>
 </table>
@@ -648,7 +1020,7 @@ out.mcmc.Geweke&lt;-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, da
 <h2 id="jags">JAGS</h2>
 <p>We now turn to analyzing the same data with the same statistical model using <code>JAGS</code> with <code>runMCMC_btadjust()</code>. We rely on the data simulated above. In <code>JAGS</code>, we now put all the data in the same list:</p>
 <pre><code class="language-r">
-ModelData &lt;-list(mass = y1000, nobs = length(y1000))
+ModelData.Jags &lt;-list(mass = y1000, nobs = length(y1000))
 
 </code></pre>
 <p>We then propose the use of <code>JAGS</code> with a specification of the model from within R - which we find more convenient. We therefore write the model within <code>R</code> as a character chain:</p>
@@ -674,12 +1046,13 @@ modeltotransfer&lt;-&quot;model {
 <p>We then launch <code>runMCMC_btadjust()</code> with <code>MCMC_language=&quot;Jags&quot;</code>, specifying arguments <code>code</code> and <code>data</code> which are required in this case:</p>
 <pre><code class="language-r">
 set.seed(1)
-out.mcmc.Jags&lt;-runMCMC_btadjust(code=modeltotransfer,  data = ModelData, MCMC_language=&quot;Jags&quot;, 
+out.mcmc.Jags&lt;-runMCMC_btadjust(code=modeltotransfer,  data = ModelData.Jags, MCMC_language=&quot;Jags&quot;, 
     Nchains=Nchains, params=params, inits=Inits,
     niter.min=1000,niter.max=300000,
     nburnin.min=100,nburnin.max=200000,
     thin.min=1,thin.max=1000,
 		conv.max=1.05,neff.min=1000)
+#&gt; [1] &quot;control$seed is NULL. Replaced by 1&quot;
 #&gt; Compiling model graph
 #&gt;    Resolving undeclared variables
 #&gt;    Allocating nodes
@@ -690,6 +1063,11 @@ out.mcmc.Jags&lt;-runMCMC_btadjust(code=modeltotransfer,  data = ModelData, MCMC
 #&gt; 
 #&gt; Initializing model
 #&gt; 
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;MCMC has reached the required level of convergence.&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;MCMC has reached the required level of effective values.&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 </code></pre>
 <p>Note that if we had written the <code>JAGS</code> code in a text file named <code>&quot;ModelJags.txt&quot;</code>, we would just have replaced in the command above <code>code=modeltotransfer</code> by <code>code=&quot;ModelJags.txt&quot;</code>.</p>
@@ -707,17 +1085,17 @@ out.mcmc.Jags&lt;-runMCMC_btadjust(code=modeltotransfer,  data = ModelData, MCMC
 <tbody>
 <tr>
 <td align="left">population.mean</td>
-<td align="right">599.645</td>
-<td align="right">1.015</td>
-<td align="right">0.020</td>
+<td align="right">599.640</td>
+<td align="right">1.009</td>
+<td align="right">0.019</td>
 <td align="right">0.023</td>
 </tr>
 <tr>
 <td align="left">population.sd</td>
-<td align="right">31.078</td>
-<td align="right">0.700</td>
+<td align="right">31.081</td>
+<td align="right">0.681</td>
 <td align="right">0.013</td>
-<td align="right">0.017</td>
+<td align="right">0.016</td>
 </tr>
 </tbody>
 </table>
@@ -734,18 +1112,18 @@ out.mcmc.Jags&lt;-runMCMC_btadjust(code=modeltotransfer,  data = ModelData, MCMC
 <tbody>
 <tr>
 <td align="left">Nimble.Geweke vs. Jags</td>
-<td align="right">0.1685</td>
-<td align="right">0.4334</td>
+<td align="right">0.7510</td>
+<td align="right">0.9239</td>
 </tr>
 <tr>
 <td align="left">Nimble.Coda.Geweke vs. Jags</td>
-<td align="right">0.3362</td>
-<td align="right">0.8447</td>
+<td align="right">0.5774</td>
+<td align="right">0.7943</td>
 </tr>
 <tr>
 <td align="left">Nimble.Default vs. Jags</td>
-<td align="right">0.1240</td>
-<td align="right">0.5962</td>
+<td align="right">0.1728</td>
+<td align="right">0.2101</td>
 </tr>
 </tbody>
 </table>
@@ -763,83 +1141,128 @@ out.mcmc.Jags&lt;-runMCMC_btadjust(code=modeltotransfer,  data = ModelData, MCMC
 <tbody>
 <tr>
 <td align="left">converged</td>
-<td align="right">1.0000</td>
-<td align="right">1.0000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
 </tr>
 <tr>
 <td align="left">neffs.reached</td>
-<td align="right">1.0000</td>
-<td align="right">1.0000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
+</tr>
+<tr>
+<td align="left">final.Nchains</td>
+<td align="right">3.00000000</td>
+<td align="right">3.00000000</td>
 </tr>
 <tr>
 <td align="left">burnin</td>
-<td align="right">575.0000</td>
-<td align="right">101.0000</td>
+<td align="right">575.00000000</td>
+<td align="right">100.00000000</td>
 </tr>
 <tr>
 <td align="left">thin</td>
-<td align="right">5.0000</td>
-<td align="right">1.0000</td>
+<td align="right">5.00000000</td>
+<td align="right">1.00000000</td>
 </tr>
 <tr>
 <td align="left">niter.tot</td>
-<td align="right">3065.0000</td>
-<td align="right">1000.0000</td>
+<td align="right">2955.00000000</td>
+<td align="right">1000.00000000</td>
 </tr>
 <tr>
 <td align="left">duration</td>
-<td align="right">60.6805</td>
-<td align="right">6.0822</td>
+<td align="right">41.27244711</td>
+<td align="right">6.71807909</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.preparation</td>
-<td align="right">54.6230</td>
-<td align="right">2.8543</td>
+<td align="right">32.59623289</td>
+<td align="right">2.47208190</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.transient</td>
-<td align="right">0.1580</td>
-<td align="right">0.2110</td>
+<td align="right">0.16122569</td>
+<td align="right">0.15866129</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.asymptotic</td>
-<td align="right">0.6844</td>
-<td align="right">1.8783</td>
+<td align="right">0.66733418</td>
+<td align="right">1.42795165</td>
+</tr>
+<tr>
+<td align="left">duration.MCMC.after</td>
+<td align="right">0.00004601</td>
+<td align="right">0.00004601</td>
 </tr>
 <tr>
 <td align="left">duration.btadjust</td>
-<td align="right">5.2150</td>
-<td align="right">1.1386</td>
+<td align="right">7.84760833</td>
+<td align="right">2.65933824</td>
 </tr>
 <tr>
 <td align="left">CPUduration</td>
-<td align="right">15.4100</td>
-<td align="right">4.3000</td>
+<td align="right">10.92000000</td>
+<td align="right">3.16000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.preparation</td>
-<td align="right">13.3600</td>
-<td align="right">2.1600</td>
+<td align="right">7.67000000</td>
+<td align="right">1.60000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.transient</td>
-<td align="right">0.1651</td>
-<td align="right">0.2121</td>
+<td align="right">0.15566836</td>
+<td align="right">0.15300000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.asymptotic</td>
-<td align="right">0.7149</td>
-<td align="right">1.8879</td>
+<td align="right">0.64433164</td>
+<td align="right">1.37700000</td>
+</tr>
+<tr>
+<td align="left">CPUduration.MCMC.after</td>
+<td align="right">0.00000000</td>
+<td align="right">0.00000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.btadjust</td>
-<td align="right">1.1700</td>
-<td align="right">0.0400</td>
+<td align="right">2.45000000</td>
+<td align="right">0.03000000</td>
+</tr>
+<tr>
+<td align="left">childCPUduration</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.preparation</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.transient</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.asymptotic</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.after</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.btadjust</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
 </tr>
 </tbody>
 </table>
-<p>The conclusion is that <code>JAGS</code> is much faster than <code>NIMBLE</code> on this example (row named <code>duration</code> in the previous table), due to much less time devoted to MCMC preparation - as well as to burn-in/thinning adjustment (rows named <code>duration.MCMC.preparation</code> and <code>duration.btadjust</code> in the previous table). Actually there is no adjustment with <code>JAGS</code> (<code>niter.tot</code> is equal to the initial number of iterations). Yet, <code>NIMBLE</code> is quicker regarding MCMC updating by iteration since it took <code>NIMBLE</code> less time than <code>JAGS</code> for the transient phase (respectively less than twice time for the asymptotic phase) although using more than seven (resp. seventeen) times more iterations than <code>JAGS</code>.</p>
-<p>At first sight, we would also conclude that MCMC efficiency per effective value is also better with <code>NIMBLE</code> since both languages had the same target for the minimum number of effective value - 1,000 - and the total MCMC time was lower with <code>NIMBLE</code>. Yet, a more rigorous comparison finds the reverse result:</p>
+<p>The conclusion is that <code>JAGS</code> is much faster than <code>NIMBLE</code> on this example (row named <code>duration</code> in the previous table), due to much less time devoted to MCMC preparation - as well as to burn-in/thinning adjustment (rows named <code>duration.MCMC.preparation</code> and <code>duration.btadjust</code> in the previous table). Actually there is no adjustment with <code>JAGS</code> (<code>niter.tot</code> is equal to the initial number of iterations). Yet, <code>NIMBLE</code> is quicker regarding MCMC updating by iteration since it took <code>NIMBLE</code> less time than <code>JAGS</code> for the transient phase (respectively less than twice time for the asymptotic phase) although using more than 5.75 (resp. 2.6444444 for the asymptotic phase) times more iterations than <code>JAGS</code>.</p>
+<p>At first sight, we would also conclude that MCMC efficiency per effective value is also better with <code>NIMBLE</code> since both languages had the same target for the minimum number of effective value - 1,000 - and the total MCMC time was lower with <code>NIMBLE</code>. Yet, the number of effective values are different:</p>
 <p>Table: Comparison of the number of effective values between the default NIMBLE model and the JAGS model:</p>
 <table>
 <thead>
@@ -852,23 +1275,27 @@ out.mcmc.Jags&lt;-runMCMC_btadjust(code=modeltotransfer,  data = ModelData, MCMC
 <tbody>
 <tr>
 <td align="left">Min. Number Eff. values</td>
-<td align="right">1074.0000000</td>
-<td align="right">1728.0000000</td>
+<td align="right">1113.0000000</td>
+<td align="right">1699.0000000</td>
 </tr>
 <tr>
 <td align="left">MCMC CPU time per Effective Value</td>
-<td align="right">0.0008194</td>
-<td align="right">0.0012153</td>
+<td align="right">0.0007188</td>
+<td align="right">0.0009005</td>
 </tr>
 </tbody>
 </table>
-<p>Indeed, <code>JAGS</code> with just the first iterations produced a high number of effective values - actually much bigger than the targeted <code>neff.min</code>  - which renders the MCMC time per effective value now lower with <code>JAGS</code> than <code>NIMBLE</code> with this model (cf. table above).</p>
+<p>Indeed, “JAGS” with just the first iterations produced a higher number of effective values - actually bigger than the targeted “neff.min”  - than “NIMBLE”.
+Yet, the MCMC time per effective value remained lower with “NIMBLE” than with “JAGS” with this model (cf. table above).</p>
 <h2 id="greta">Greta</h2>
 <p>We finally run the <code>greta</code> version of our model with <code>runMCMC_btadjust()</code>. <code>greta</code> is rather different from <code>JAGS</code> and <code>NIMBLE</code> in that the model defines objects in R and thus does not require a model code to be passed to <code>runMCMC_btadjust()</code>, nor Data or Constants. We rely on the very data simulated above. The coding with <code>greta</code> is as follows:</p>
 <pre><code class="language-r">#in my setting I need to load not only greta but R6 &amp; tensorflow packages
 library(greta)
+#&gt; Warning: le package 'greta' a été compilé avec la version R 4.3.3
 library (R6)
+#&gt; Warning: le package 'R6' a été compilé avec la version R 4.3.2
 library(tensorflow)
+#&gt; Warning: le package 'tensorflow' a été compilé avec la version R 4.3.2
 
 #first requirement of greta: declaring the data that will be analyzed with the function as_data
 Y&lt;-as_data(y1000)
@@ -884,31 +1311,35 @@ try({distribution(Y)&lt;-normal(population.mean,population.sd) })
 m&lt;-model(population.mean, population.sd)
 
 ### we finally have to prepare initial values with a specific greta function - initials:
-ModelInits &lt;- function()
+ModelInits.Greta &lt;- function()
     {initials(population.mean = rnorm(1,600,90), population.sd = runif(1, 1, 30))}
 
 set.seed(1)
-  Inits&lt;-lapply(1:Nchains,function(x){ModelInits()})
+  Inits.Greta&lt;-lapply(1:Nchains,function(x){ModelInits.Greta()})
 </code></pre>
 <p>We are now ready to fit the model with <code>runMCMC_btadjust()</code>, specifying <code>MCMC_language=&quot;Greta&quot;</code> and giving the argument <code>model</code> instead of <code>code</code> and <code>data</code>:</p>
 <pre><code class="language-r">out.mcmc.greta&lt;-runMCMC_btadjust(model=m, MCMC_language=&quot;Greta&quot;,
-    Nchains=Nchains,params=params,inits=Inits,
+    Nchains=Nchains,params=params,inits=Inits.Greta,
 		niter.min=1000,niter.max=300000,
     nburnin.min=100,nburnin.max=200000,
 		thin.min=1,thin.max=1000,
 		conv.max=1.05, neff.min=1000)
+#&gt; [1] &quot;control$seed is NULL. Replaced by 1&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; 
-#&gt; [1] &quot;raw multiplier of thin:  3.807&quot;
+#&gt; [1] &quot;Raw multiplier of thin:  4.093&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;Testing multiplier of thin:  4 :&quot;
+#&gt; [1] &quot;Retained multiplier of thin:  4 :&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; [1] &quot;Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 #&gt; 
-#&gt; [1] &quot;raw multiplier of thin:  1.414&quot;
 #&gt; [1] &quot;###################################################################################&quot;
-#&gt; [1] &quot;Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle&quot;
+#&gt; [1] &quot;MCMC has reached the required level of convergence.&quot;
 #&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;MCMC has reached the required level of effective values.&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 </code></pre>
 <p>Table: Summary of the statistical parameters of the greta model:</p>
@@ -925,16 +1356,16 @@ set.seed(1)
 <tbody>
 <tr>
 <td align="left">population.mean</td>
-<td align="right">599.666</td>
-<td align="right">1.002</td>
+<td align="right">599.683</td>
+<td align="right">0.983</td>
 <td align="right">0.026</td>
-<td align="right">0.032</td>
+<td align="right">0.027</td>
 </tr>
 <tr>
 <td align="left">population.sd</td>
-<td align="right">31.099</td>
-<td align="right">0.658</td>
-<td align="right">0.017</td>
+<td align="right">31.106</td>
+<td align="right">0.694</td>
+<td align="right">0.018</td>
 <td align="right">0.016</td>
 </tr>
 </tbody>
@@ -952,13 +1383,13 @@ set.seed(1)
 <tbody>
 <tr>
 <td align="left">Nimble vs. greta</td>
-<td align="right">0.031532</td>
-<td align="right">0.024661</td>
+<td align="right">0.9974</td>
+<td align="right">0.2307</td>
 </tr>
 <tr>
 <td align="left">Jags vs. greta</td>
-<td align="right">0.384392</td>
-<td align="right">0.007422</td>
+<td align="right">0.3427</td>
+<td align="right">0.6979</td>
 </tr>
 </tbody>
 </table>
@@ -976,111 +1407,172 @@ set.seed(1)
 <tbody>
 <tr>
 <td align="left">converged</td>
-<td align="right">1.0000</td>
-<td align="right">1.0000</td>
-<td align="right">1.0000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
 </tr>
 <tr>
 <td align="left">neffs.reached</td>
-<td align="right">1.0000</td>
-<td align="right">1.0000</td>
-<td align="right">1.0000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
+</tr>
+<tr>
+<td align="left">final.Nchains</td>
+<td align="right">3.00000000</td>
+<td align="right">3.00000000</td>
+<td align="right">3.00000000</td>
 </tr>
 <tr>
 <td align="left">burnin</td>
-<td align="right">575.0000</td>
-<td align="right">101.0000</td>
-<td align="right">1.0000</td>
+<td align="right">575.00000000</td>
+<td align="right">100.00000000</td>
+<td align="right">0.00000000</td>
 </tr>
 <tr>
 <td align="left">thin</td>
-<td align="right">5.0000</td>
-<td align="right">1.0000</td>
-<td align="right">4.0000</td>
+<td align="right">5.00000000</td>
+<td align="right">1.00000000</td>
+<td align="right">4.00000000</td>
 </tr>
 <tr>
 <td align="left">niter.tot</td>
-<td align="right">3065.0000</td>
-<td align="right">1000.0000</td>
-<td align="right">2056.0000</td>
+<td align="right">2955.00000000</td>
+<td align="right">1000.00000000</td>
+<td align="right">1972.00000000</td>
 </tr>
 <tr>
 <td align="left">duration</td>
-<td align="right">60.6805</td>
-<td align="right">6.0822</td>
-<td align="right">35.7248</td>
+<td align="right">41.27244711</td>
+<td align="right">6.71807909</td>
+<td align="right">17.57540703</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.preparation</td>
-<td align="right">54.6230</td>
-<td align="right">2.8543</td>
-<td align="right">0.3699</td>
+<td align="right">32.59623289</td>
+<td align="right">2.47208190</td>
+<td align="right">0.54078507</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.transient</td>
-<td align="right">0.1580</td>
-<td align="right">0.2110</td>
-<td align="right">10.4235</td>
+<td align="right">0.16122569</td>
+<td align="right">0.15866129</td>
+<td align="right">4.27031694</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.asymptotic</td>
-<td align="right">0.6844</td>
-<td align="right">1.8783</td>
-<td align="right">21.3989</td>
+<td align="right">0.66733418</td>
+<td align="right">1.42795165</td>
+<td align="right">8.42106500</td>
+</tr>
+<tr>
+<td align="left">duration.MCMC.after</td>
+<td align="right">0.00004601</td>
+<td align="right">0.00004601</td>
+<td align="right">0.00004697</td>
 </tr>
 <tr>
 <td align="left">duration.btadjust</td>
-<td align="right">5.2150</td>
-<td align="right">1.1386</td>
-<td align="right">3.5326</td>
+<td align="right">7.84760833</td>
+<td align="right">2.65933824</td>
+<td align="right">4.34319305</td>
 </tr>
 <tr>
 <td align="left">CPUduration</td>
-<td align="right">15.4100</td>
-<td align="right">4.3000</td>
-<td align="right">91.6900</td>
+<td align="right">10.92000000</td>
+<td align="right">3.16000000</td>
+<td align="right">42.81000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.preparation</td>
-<td align="right">13.3600</td>
-<td align="right">2.1600</td>
-<td align="right">0.0200</td>
+<td align="right">7.67000000</td>
+<td align="right">1.60000000</td>
+<td align="right">0.02000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.transient</td>
-<td align="right">0.1651</td>
-<td align="right">0.2121</td>
-<td align="right">29.9710</td>
+<td align="right">0.15566836</td>
+<td align="right">0.15300000</td>
+<td align="right">14.37752355</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.asymptotic</td>
-<td align="right">0.7149</td>
-<td align="right">1.8879</td>
-<td align="right">61.5290</td>
+<td align="right">0.64433164</td>
+<td align="right">1.37700000</td>
+<td align="right">28.35247645</td>
+</tr>
+<tr>
+<td align="left">CPUduration.MCMC.after</td>
+<td align="right">0.00000000</td>
+<td align="right">0.00000000</td>
+<td align="right">0.00000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.btadjust</td>
-<td align="right">1.1700</td>
-<td align="right">0.0400</td>
-<td align="right">0.1700</td>
+<td align="right">2.45000000</td>
+<td align="right">0.03000000</td>
+<td align="right">0.06000000</td>
+</tr>
+<tr>
+<td align="left">childCPUduration</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.preparation</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.transient</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.asymptotic</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.after</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.btadjust</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
 </tr>
 </tbody>
 </table>
-<p>MCMC time (rows <code>duration.MCMC.transient</code> &amp; <code>duration.MCMC.asymptotic</code>) was far greater with <code>greta</code> than with <code>JAGS</code> and <code>NIMBLE</code>, for a minimum number of effective values with <code>greta</code> of 1024. Total duration is rather close with <code>greta</code> compared with <code>NIMBLE</code>, due to the great time required by <code>NIMBLE</code> for MCMC preparation - while this preparation is done outside <code>runMCMC_btadjust()</code> with <code>greta</code>. Yet, when we compare CPU total durations (<code>CPUduration</code>), <code>greta</code> gets worse than <code>NIMBLE</code>, simply because <code>greta</code> parallelized its process and therefore required more CPU time per time unit.</p>
+<p>MCMC time (rows <code>duration.MCMC.transient</code> &amp; <code>duration.MCMC.asymptotic</code>) was far greater with <code>greta</code> than with <code>JAGS</code> and <code>NIMBLE</code>, for a minimum number of effective values with <code>greta</code> of 1127. Total duration is rather close with <code>greta</code> compared with <code>NIMBLE</code>, due to the great time required by <code>NIMBLE</code> for MCMC preparation - while this preparation is done outside <code>runMCMC_btadjust()</code> with <code>greta</code>. Yet, when we compare CPU total durations (<code>CPUduration</code>), <code>greta</code> gets worse than <code>NIMBLE</code> while it was the reverse for total duration (<code>duration</code>), simply because <code>greta</code> parallelized its process and therefore required more CPU time per time unit.</p>
 <p>We tried to give a second chance to <code>greta</code>, based on the following post: <a href="https://forum.greta-stats.org/t/size-and-number-of-leapfrog-steps-in-hmc/332">https://forum.greta-stats.org/t/size-and-number-of-leapfrog-steps-in-hmc/332</a>. The idea was to let <code>greta</code> have more information to adapt its hmc parameters during the warm-up phase by just having more chains to run - hereafter, 15.</p>
-<pre><code class="language-r">Nchains&lt;-15
-ModelInits &lt;- function()
+<pre><code class="language-r">Nchains.Greta&lt;-15
+ModelInits.Greta &lt;- function()
     {initials(population.mean = rnorm(1,600,90), population.sd = runif(1, 1, 30))}
 
 set.seed(1)
-Inits&lt;-lapply(1:Nchains,function(x){ModelInits()})
+Inits.Greta&lt;-lapply(1:Nchains.Greta,function(x){ModelInits.Greta()})
   
   out.mcmc.greta.morechains&lt;-runMCMC_btadjust(model=m, MCMC_language=&quot;Greta&quot;,
-    Nchains=Nchains,params=params,inits=Inits,
+    Nchains=Nchains.Greta,params=params,inits=Inits.Greta,
 		niter.min=1000,niter.max=300000,
     nburnin.min=100,nburnin.max=200000,
 		thin.min=1,thin.max=1000,
 		conv.max=1.05, neff.min=1000)
+#&gt; [1] &quot;control$seed is NULL. Replaced by 1&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; 
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;MCMC has reached the required level of convergence.&quot;
+#&gt; [1] &quot;###################################################################################&quot;
+#&gt; [1] &quot;MCMC has reached the required level of effective values.&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 </code></pre>
 <p>Table: Summary of the statistical parameters of the greta model with 15 chains:</p>
@@ -1097,17 +1589,17 @@ Inits&lt;-lapply(1:Nchains,function(x){ModelInits()})
 <tbody>
 <tr>
 <td align="left">population.mean</td>
-<td align="right">599.6268</td>
-<td align="right">0.9913</td>
-<td align="right">0.0081</td>
-<td align="right">0.0160</td>
+<td align="right">599.6800</td>
+<td align="right">0.9764</td>
+<td align="right">0.0080</td>
+<td align="right">0.0166</td>
 </tr>
 <tr>
 <td align="left">population.sd</td>
-<td align="right">31.0860</td>
-<td align="right">0.6943</td>
-<td align="right">0.0057</td>
-<td align="right">0.0118</td>
+<td align="right">31.1108</td>
+<td align="right">0.7070</td>
+<td align="right">0.0058</td>
+<td align="right">0.0112</td>
 </tr>
 </tbody>
 </table>
@@ -1124,13 +1616,13 @@ Inits&lt;-lapply(1:Nchains,function(x){ModelInits()})
 <tbody>
 <tr>
 <td align="left">Nimble vs. greta.morechains</td>
-<td align="right">0.03657</td>
-<td align="right">0.47788</td>
+<td align="right">0.97118</td>
+<td align="right">0.07684</td>
 </tr>
 <tr>
 <td align="left">Jags vs. greta.morechains</td>
-<td align="right">0.65206</td>
-<td align="right">0.70921</td>
+<td align="right">0.10423</td>
+<td align="right">0.09067</td>
 </tr>
 </tbody>
 </table>
@@ -1148,97 +1640,153 @@ Inits&lt;-lapply(1:Nchains,function(x){ModelInits()})
 <tbody>
 <tr>
 <td align="left">converged</td>
-<td align="right">1.0000</td>
-<td align="right">1.0000</td>
-<td align="right">1.0000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
 </tr>
 <tr>
 <td align="left">neffs.reached</td>
-<td align="right">1.0000</td>
-<td align="right">1.0000</td>
-<td align="right">1.0000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
+</tr>
+<tr>
+<td align="left">final.Nchains</td>
+<td align="right">3.00000000</td>
+<td align="right">3.00000000</td>
+<td align="right">15.00000000</td>
 </tr>
 <tr>
 <td align="left">burnin</td>
-<td align="right">575.0000</td>
-<td align="right">101.0000</td>
-<td align="right">1.0000</td>
+<td align="right">575.00000000</td>
+<td align="right">100.00000000</td>
+<td align="right">0.00000000</td>
 </tr>
 <tr>
 <td align="left">thin</td>
-<td align="right">5.0000</td>
-<td align="right">1.0000</td>
-<td align="right">1.0000</td>
+<td align="right">5.00000000</td>
+<td align="right">1.00000000</td>
+<td align="right">1.00000000</td>
 </tr>
 <tr>
 <td align="left">niter.tot</td>
-<td align="right">3065.0000</td>
-<td align="right">1000.0000</td>
-<td align="right">1000.0000</td>
+<td align="right">2955.00000000</td>
+<td align="right">1000.00000000</td>
+<td align="right">1000.00000000</td>
 </tr>
 <tr>
 <td align="left">duration</td>
-<td align="right">60.6805</td>
-<td align="right">6.0822</td>
-<td align="right">22.2909</td>
+<td align="right">41.27244711</td>
+<td align="right">6.71807909</td>
+<td align="right">15.10678387</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.preparation</td>
-<td align="right">54.6230</td>
-<td align="right">2.8543</td>
-<td align="right">0.3810</td>
+<td align="right">32.59623289</td>
+<td align="right">2.47208190</td>
+<td align="right">0.52773094</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.transient</td>
-<td align="right">0.1580</td>
-<td align="right">0.2110</td>
-<td align="right">10.2547</td>
+<td align="right">0.16122569</td>
+<td align="right">0.15866129</td>
+<td align="right">5.90620852</td>
 </tr>
 <tr>
 <td align="left">duration.MCMC.asymptotic</td>
-<td align="right">0.6844</td>
-<td align="right">1.8783</td>
-<td align="right">10.2342</td>
+<td align="right">0.66733418</td>
+<td align="right">1.42795165</td>
+<td align="right">5.90620852</td>
+</tr>
+<tr>
+<td align="left">duration.MCMC.after</td>
+<td align="right">0.00004601</td>
+<td align="right">0.00004601</td>
+<td align="right">0.00004292</td>
 </tr>
 <tr>
 <td align="left">duration.btadjust</td>
-<td align="right">5.2150</td>
-<td align="right">1.1386</td>
-<td align="right">1.4209</td>
+<td align="right">7.84760833</td>
+<td align="right">2.65933824</td>
+<td align="right">2.76659298</td>
 </tr>
 <tr>
 <td align="left">CPUduration</td>
-<td align="right">15.4100</td>
-<td align="right">4.3000</td>
-<td align="right">71.3300</td>
+<td align="right">10.92000000</td>
+<td align="right">3.16000000</td>
+<td align="right">44.22000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.preparation</td>
-<td align="right">13.3600</td>
-<td align="right">2.1600</td>
-<td align="right">0.0000</td>
+<td align="right">7.67000000</td>
+<td align="right">1.60000000</td>
+<td align="right">0.00000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.transient</td>
-<td align="right">0.1651</td>
-<td align="right">0.2121</td>
-<td align="right">35.6056</td>
+<td align="right">0.15566836</td>
+<td align="right">0.15300000</td>
+<td align="right">22.04500000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.MCMC.asymptotic</td>
-<td align="right">0.7149</td>
-<td align="right">1.8879</td>
-<td align="right">35.5344</td>
+<td align="right">0.64433164</td>
+<td align="right">1.37700000</td>
+<td align="right">22.04500000</td>
+</tr>
+<tr>
+<td align="left">CPUduration.MCMC.after</td>
+<td align="right">0.00000000</td>
+<td align="right">0.00000000</td>
+<td align="right">0.00000000</td>
 </tr>
 <tr>
 <td align="left">CPUduration.btadjust</td>
-<td align="right">1.1700</td>
-<td align="right">0.0400</td>
-<td align="right">0.1900</td>
+<td align="right">2.45000000</td>
+<td align="right">0.03000000</td>
+<td align="right">0.13000000</td>
+</tr>
+<tr>
+<td align="left">childCPUduration</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.preparation</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.transient</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.asymptotic</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.MCMC.after</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr>
+<td align="left">childCPUduration.btadjust</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
 </tr>
 </tbody>
 </table>
-<p>We still observed more CPU duration with <code>greta</code>, although the difference had decreased and the associated number of effective values for <code>greta</code> was now 3291, which rendered MCMC CPU efficiency with <code>greta</code> closer to <code>NIMBLE</code>. Yet, overall, <code>JAGS</code> performed better than <code>greta</code> and <code>NIMBLE</code> on this example.</p>
+<p>We still observed more CPU duration with <code>greta</code>, although the associated number of effective values for <code>greta</code> was now 3244, which rendered MCMC CPU efficiency with <code>greta</code> closer to <code>NIMBLE</code>.</p>
+<h2 id="parallelization">Parallelization</h2>
+<p>The function <code>runMCMC_btadjust()</code> now allows automatic parallelization of different Markov chains of the MCMC parts of the algorithm which can be of interest when we have several Markov chains. We initially planned to run the parallelized versions of both the <code>NIMBLE</code> and <code>JAGS</code> models with 3 chains - recall that <code>greta</code> already uses parallelization. Yet, due to intrincacies of the CRAN process, the vignette did not work on CRAN whereas it did on my computer. I can therefore not put it here. The only difference with the preceding calls are the addition of <code>control.MCMC=list(parallelize=TRUE)</code> - or of <code>parallelize=TRUE</code> in <code>control.MCMC</code> if already present.</p>
 <h1 id="conclusion">Conclusion</h1>
 <p>We hope we have convinced the R user of Bayesian models that <code>runMCMC_btadjust()</code> can help having a more efficient, quality oriented use of these types of models while saving analyst’s and potentially computer time. Indeed, to recap, the aim of this function is to run a Markov Chain Monte Carlo (MCMC) for a specified Bayesian model while adapting automatically the burn-in and thinning parameters to meet pre-specified targets in terms of MCMC convergence and number of effective values of MCMC outputs. This is done in only one call to the function that repeatedly calls the MCMC until criteria for convergence and number of effective values are met. The function has four main advantages:</p>
 <p>(i) it saves the analyst’s programming time since he/she does not have to repeatedly diagnose and re-run MCMCs until desired levels of convergence and number of effective values are reached;</p>
@@ -1246,8 +1794,6 @@ Inits&lt;-lapply(1:Nchains,function(x){ModelInits()})
 <p>(iii) it may save computer’s time when compared to cases where we have to restart the MCMC from the beginning if it has not converged or reached the specified number of effective values;</p>
 <p>(iv) it can be applied with different MCMC R languages - at present <code>greta</code>, <code>NIMBLE</code> and <code>JAGS</code>. This comes with two positive consequences in practice: first, allowing the user a more rigorous comparison between the three Bayesian fitting languages in terms of comparability of inference and of MCMC efficiency - especially in terms of CPU time per effective value; second, making it easier to develop the same Bayesian model with these different languages, which is to our experience welcome in practical cases, since these different languages have advantages over the other ones that vary from one context to the other.</p>
 <h1 id="references">References</h1>
-</div>
-<div class="include-after">
 </div>
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>

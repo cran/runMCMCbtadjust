@@ -30,6 +30,7 @@ condition_nimble<-TRUE
 
 
 ## ----Simulating data----------------------------------------------------------
+
 set.seed(1)
 y1000<-rnorm(n=1000,mean=600,sd=30)
 
@@ -76,6 +77,10 @@ Inits<-lapply(1:Nchains,function(x){ModelInits()})
 #specifying the names of parameters to analyse and save:
 params <- c("population.mean", "population.sd") 
 
+#devising the maximum level allowed for the Geweke diagnostic of convergence (cf. following)
+npars<-length(params)
+Gew.Max<-as.double(format(quantile(sapply(1:100000,function(x,N){max(abs(rnorm(N)))},npars),0.95),digits=3,scientific=FALSE))
+
 
 ## ----Nimble first run, cache=FALSE--------------------------------------------
 out.mcmc.Coda.Geweke<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = ModelData, MCMC_language="Nimble",
@@ -83,9 +88,39 @@ out.mcmc.Coda.Geweke<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, 
     niter.min=1000, niter.max=300000,
     nburnin.min=100, nburnin.max=200000, 
     thin.min=1, thin.max=1000,
-    conv.max=1.05, neff.min=1000,
-    control=list(neff.method="Coda", convtype="Geweke"),
-    control.MCMC=list(showCompilerOutput=FALSE))
+    conv.max=Gew.Max, neff.min=1000,
+    control=list(neff.method="Coda", convtype="Geweke"))
+
+
+## ----Nimble first run with print.diagnostics, cache=FALSE---------------------
+out.mcmc.Coda.Geweke.with.print.diagnostics<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = ModelData, MCMC_language="Nimble",
+    Nchains=1, params=params, inits=Inits[1],
+    niter.min=1000, niter.max=300000,
+    nburnin.min=100, nburnin.max=200000, 
+    thin.min=1, thin.max=1000,
+    conv.max=Gew.Max, neff.min=1000,
+    control=list(neff.method="Coda", convtype="Geweke",print.diagnostics=TRUE))
+
+
+## ----nature of the output, cache=FALSE----------------------------------------
+
+length(out.mcmc.Coda.Geweke)
+
+class(out.mcmc.Coda.Geweke)
+
+head(out.mcmc.Coda.Geweke[[1]])
+
+
+
+## ----attributes of the output, cache=FALSE------------------------------------
+
+names(attributes(out.mcmc.Coda.Geweke))
+
+names(attributes(out.mcmc.Coda.Geweke)$package.versions)
+
+attributes(out.mcmc.Coda.Geweke)$final.params
+
+attributes(out.mcmc.Coda.Geweke)$sessionInfo
 
 
 ## ----Nimble second run, cache=FALSE-------------------------------------------
@@ -94,8 +129,7 @@ out.mcmc<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = Model
     niter.min=1000, niter.max=300000,
     nburnin.min=100, nburnin.max=200000, 
     thin.min=1, thin.max=1000,
-    conv.max=1.05, neff.min=1000,
-    control.MCMC=list(showCompilerOutput=FALSE))
+    conv.max=1.05, neff.min=1000)
 
 
 ## ----Nimble comparison first two runs,echo=FALSE------------------------------
@@ -115,9 +149,8 @@ out.mcmc.Geweke<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data 
     niter.min=1000, niter.max=300000,
     nburnin.min=100, nburnin.max=200000, 
     thin.min=1, thin.max=1000,
-    conv.max=1.05, neff.min=1000,
-    control=list(convtype="Geweke"),
-    control.MCMC=list(showCompilerOutput=FALSE))
+    conv.max=Gew.Max, neff.min=1000,
+    control=list(convtype="Geweke"))
 
 
 ## ----Nimble comparison first three runs, echo=FALSE---------------------------
@@ -154,7 +187,7 @@ knitr::kable(format(summary(out.mcmc)[[1]],digits=2,scientific=FALSE),align="r",
 
 ## ----Jags Data----------------------------------------------------------------
 
-ModelData <-list(mass = y1000, nobs = length(y1000))
+ModelData.Jags <-list(mass = y1000, nobs = length(y1000))
 
 
 
@@ -181,7 +214,7 @@ modeltotransfer<-"model {
 ## ----Jags First model, cache=FALSE--------------------------------------------
 
 set.seed(1)
-out.mcmc.Jags<-runMCMC_btadjust(code=modeltotransfer,  data = ModelData, MCMC_language="Jags", 
+out.mcmc.Jags<-runMCMC_btadjust(code=modeltotransfer,  data = ModelData.Jags, MCMC_language="Jags", 
     Nchains=Nchains, params=params, inits=Inits,
     niter.min=1000,niter.max=300000,
     nburnin.min=100,nburnin.max=200000,
@@ -244,16 +277,16 @@ try({distribution(Y)<-normal(population.mean,population.sd) })
 m<-model(population.mean, population.sd)
 
 ### we finally have to prepare initial values with a specific greta function - initials:
-ModelInits <- function()
+ModelInits.Greta <- function()
     {initials(population.mean = rnorm(1,600,90), population.sd = runif(1, 1, 30))}
 
 set.seed(1)
-  Inits<-lapply(1:Nchains,function(x){ModelInits()})
+  Inits.Greta<-lapply(1:Nchains,function(x){ModelInits.Greta()})
 
 
 ## ----greta model running with runMCMC_btadjust, cache=FALSE-------------------
 out.mcmc.greta<-runMCMC_btadjust(model=m, MCMC_language="Greta",
-    Nchains=Nchains,params=params,inits=Inits,
+    Nchains=Nchains,params=params,inits=Inits.Greta,
 		niter.min=1000,niter.max=300000,
     nburnin.min=100,nburnin.max=200000,
 		thin.min=1,thin.max=1000,
@@ -280,15 +313,15 @@ knitr::kable(compar_MCMC_times[1:(dim(compar_MCMC_times)[1]-1),],col.names=c("Ni
 
 
 ## ----second greta model running with runMCMC_btadjust, cache=FALSE------------
-Nchains<-15
-ModelInits <- function()
+Nchains.Greta<-15
+ModelInits.Greta <- function()
     {initials(population.mean = rnorm(1,600,90), population.sd = runif(1, 1, 30))}
 
 set.seed(1)
-Inits<-lapply(1:Nchains,function(x){ModelInits()})
+Inits.Greta<-lapply(1:Nchains.Greta,function(x){ModelInits.Greta()})
   
   out.mcmc.greta.morechains<-runMCMC_btadjust(model=m, MCMC_language="Greta",
-    Nchains=Nchains,params=params,inits=Inits,
+    Nchains=Nchains.Greta,params=params,inits=Inits.Greta,
 		niter.min=1000,niter.max=300000,
     nburnin.min=100,nburnin.max=200000,
 		thin.min=1,thin.max=1000,
@@ -298,7 +331,7 @@ Inits<-lapply(1:Nchains,function(x){ModelInits()})
 
 ## ----second greta model running with runMCMC_btadjust - inv, echo=FALSE-------
 
-knitr::kable(format(summary(out.mcmc.greta.morechains)[[1]],digits=2,scientific=FALSE),align="r",caption=paste0("Summary of the statistical parameters of the greta model with ",Nchains," chains:"))
+knitr::kable(format(summary(out.mcmc.greta.morechains)[[1]],digits=2,scientific=FALSE),align="r",caption=paste0("Summary of the statistical parameters of the greta model with ",Nchains.Greta," chains:"))
 
 
 

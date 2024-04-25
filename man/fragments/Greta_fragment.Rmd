@@ -23,11 +23,11 @@ try({distribution(Y)<-normal(population.mean,population.sd) })
 m<-model(population.mean, population.sd)
 
 ### we finally have to prepare initial values with a specific greta function - initials:
-ModelInits <- function()
+ModelInits.Greta <- function()
     {initials(population.mean = rnorm(1,600,90), population.sd = runif(1, 1, 30))}
 
 set.seed(1)
-  Inits<-lapply(1:Nchains,function(x){ModelInits()})
+  Inits.Greta<-lapply(1:Nchains,function(x){ModelInits.Greta()})
 
 ```
 
@@ -35,7 +35,7 @@ We are now ready to fit the model with `runMCMC_btadjust()`, specifying `MCMC_la
 
 ```{r greta model running with runMCMC_btadjust, cache=FALSE}
 out.mcmc.greta<-runMCMC_btadjust(model=m, MCMC_language="Greta",
-    Nchains=Nchains,params=params,inits=Inits,
+    Nchains=Nchains,params=params,inits=Inits.Greta,
 		niter.min=1000,niter.max=300000,
     nburnin.min=100,nburnin.max=200000,
 		thin.min=1,thin.max=1000,
@@ -70,20 +70,20 @@ knitr::kable(compar_MCMC_times[1:(dim(compar_MCMC_times)[1]-1),],col.names=c("Ni
 
 ```
 
-MCMC time (rows `duration.MCMC.transient` & `duration.MCMC.asymptotic`) was far greater with `greta` than with `JAGS` and `NIMBLE`, for a minimum number of effective values with `greta` of `r attributes(out.mcmc.greta)$final.diags$neff_synth[,"min"]`. Total duration is rather close with `greta` compared with `NIMBLE`, due to the great time required by `NIMBLE` for MCMC preparation - while this preparation is done outside `runMCMC_btadjust()` with `greta`. Yet, when we compare CPU total durations (`CPUduration`), `greta` gets worse than `NIMBLE`, simply because `greta` parallelized its process and therefore required more CPU time per time unit. 
+MCMC time (rows `duration.MCMC.transient` & `duration.MCMC.asymptotic`) was far greater with `greta` than with `JAGS` and `NIMBLE`, for a minimum number of effective values with `greta` of `r attributes(out.mcmc.greta)$final.diags$neff_synth[,"min"]`. Total duration is rather close with `greta` compared with `NIMBLE`, due to the great time required by `NIMBLE` for MCMC preparation - while this preparation is done outside `runMCMC_btadjust()` with `greta`. Yet, when we compare CPU total durations (`CPUduration`), `greta` gets worse than `NIMBLE` while it was the reverse for total duration (`duration`), simply because `greta` parallelized its process and therefore required more CPU time per time unit. 
 
 We tried to give a second chance to `greta`, based on the following post: <https://forum.greta-stats.org/t/size-and-number-of-leapfrog-steps-in-hmc/332>. The idea was to let `greta` have more information to adapt its hmc parameters during the warm-up phase by just having more chains to run - hereafter, 15.
 
 ```{r second greta model running with runMCMC_btadjust, cache=FALSE}
-Nchains<-15
-ModelInits <- function()
+Nchains.Greta<-15
+ModelInits.Greta <- function()
     {initials(population.mean = rnorm(1,600,90), population.sd = runif(1, 1, 30))}
 
 set.seed(1)
-Inits<-lapply(1:Nchains,function(x){ModelInits()})
+Inits.Greta<-lapply(1:Nchains.Greta,function(x){ModelInits.Greta()})
   
   out.mcmc.greta.morechains<-runMCMC_btadjust(model=m, MCMC_language="Greta",
-    Nchains=Nchains,params=params,inits=Inits,
+    Nchains=Nchains.Greta,params=params,inits=Inits.Greta,
 		niter.min=1000,niter.max=300000,
     nburnin.min=100,nburnin.max=200000,
 		thin.min=1,thin.max=1000,
@@ -94,7 +94,7 @@ Inits<-lapply(1:Nchains,function(x){ModelInits()})
 
 ```{r second greta model running with runMCMC_btadjust - inv, echo=FALSE}
 
-knitr::kable(format(summary(out.mcmc.greta.morechains)[[1]],digits=2,scientific=FALSE),align="r",caption=paste0("Summary of the statistical parameters of the greta model with ",Nchains," chains:"))
+knitr::kable(format(summary(out.mcmc.greta.morechains)[[1]],digits=2,scientific=FALSE),align="r",caption=paste0("Summary of the statistical parameters of the greta model with ",Nchains.Greta," chains:"))
 
 
 ```
@@ -118,5 +118,5 @@ knitr::kable(compar_MCMC_times[1:(dim(compar_MCMC_times)[1]-1),],col.names=c("Ni
 
 ```
 
-We still observed more CPU duration with `greta`, although the difference had decreased and the associated number of effective values for `greta` was now `r attributes(out.mcmc.greta.morechains)$final.diags$neff_synth[,"min"]`, which rendered MCMC CPU efficiency with `greta` closer to `NIMBLE`. Yet, overall, `JAGS` performed better than `greta` and `NIMBLE` on this example.
+We still observed more CPU duration with `greta`, although the associated number of effective values for `greta` was now `r attributes(out.mcmc.greta.morechains)$final.diags$neff_synth[,"min"]`, which rendered MCMC CPU efficiency with `greta` closer to `NIMBLE`.
 
