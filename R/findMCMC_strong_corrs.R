@@ -1,3 +1,4 @@
+
 #' @title findMCMC_strong_corrs
 #'
 #' @description  finds the couples of parameters of a MCMC.list object that have at least a minCorr level of (absolute) correlation
@@ -11,17 +12,7 @@
 #' In case corrMethod equals "hoeffd", the hoeffd function in the Hmisc package will be used. This can be very slow. Therefore a warning message is printed in this case.
 #'
 #' @examples
-#'  #\code{
-#' # for examples with Nimble or Greta, see the Vignette.
-#' # condition variable of whether installation is OK with Jags to avoid error durong package check
-#' condition_jags<-TRUE
-#' if (nchar(system.file(package='rjags'))==0) {condition_jags<-FALSE}
-#' if (nchar(system.file(package='runjags'))==0) {condition_jags<-FALSE}
-#' if (condition_jags)
-#' {suppressWarnings(temp<-runjags::testjags(silent=TRUE))
-#'  if(!(temp$JAGS.available&temp$JAGS.found&temp$JAGS.major==4)) {condition_jags<-FALSE}}
-#'
-#' if (condition_jags) {
+#' \dontrun{
 #' #generating data
 #' set.seed(1)
 #' y1000<-rnorm(n=1000,mean=600,sd=30)
@@ -65,7 +56,6 @@
 #'
 #' findMCMC_strong_corrs(out.mcmc.Coda)
 #' }
-#' #}
 #' @export
 #'
 #'
@@ -127,5 +117,6 @@ findMCMC_strong_corrs<-function(mcmcList, corrMethod="pearson",minCorr=0.3,names
   ##5- formatting the result and ending function
   Res<-cbind.data.frame(dimnames(Table)[[1]][Temp[,1]],dimnames(Table)[[1]][Temp[,2]],Table[Temp])
 
-  return(Res[order(abs(Res[,3]),decreasing=TRUE),])}
+  return(Res[order(abs(Res[,3]),decreasing=TRUE),])
+  }
 

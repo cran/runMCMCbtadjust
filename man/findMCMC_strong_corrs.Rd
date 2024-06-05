@@ -27,17 +27,7 @@ finds the couples of parameters of a MCMC.list object that have at least a minCo
 In case corrMethod equals "hoeffd", the hoeffd function in the Hmisc package will be used. This can be very slow. Therefore a warning message is printed in this case.
 }
 \examples{
- #\code{
-# for examples with Nimble or Greta, see the Vignette.
-# condition variable of whether installation is OK with Jags to avoid error durong package check
-condition_jags<-TRUE
-if (nchar(system.file(package='rjags'))==0) {condition_jags<-FALSE}
-if (nchar(system.file(package='runjags'))==0) {condition_jags<-FALSE}
-if (condition_jags)
-{suppressWarnings(temp<-runjags::testjags(silent=TRUE))
- if(!(temp$JAGS.available&temp$JAGS.found&temp$JAGS.major==4)) {condition_jags<-FALSE}}
-
-if (condition_jags) {
+\dontrun{
 #generating data
 set.seed(1)
 y1000<-rnorm(n=1000,mean=600,sd=30)
@@ -81,5 +71,4 @@ control=list(print.diagnostics=TRUE, neff.method="Coda"))
 
 findMCMC_strong_corrs(out.mcmc.Coda)
 }
-#}
 }

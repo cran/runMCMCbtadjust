@@ -1,7 +1,7 @@
 
 ## Greta
 
-We finally run the `greta` version of our model with `runMCMC_btadjust()`. `greta` is rather different from `JAGS` and `NIMBLE` in that the model defines objects in R and thus does not require a model code to be passed to `runMCMC_btadjust()`, nor Data or Constants. We rely on the very data simulated above. The coding with `greta` is as follows:
+We finally run the `greta` version of our model with `runMCMC_btadjust()`. `greta` is rather different from `JAGS` and `NIMBLE` in that the model defines objects in R and thus does not require a model code to be passed to `runMCMC_btadjust()`, nor Data or Constants. The coding with `greta` is as follows:
 
 ```{r greta model preparation}
 #in my setting I need to load not only greta but R6 & tensorflow packages

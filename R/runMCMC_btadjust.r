@@ -2,7 +2,7 @@
 #' @title runMCMC_btadjust
 #' @description  returns a mcmc.list object which is the output of a Markov Chain Monte Carlo obtained after adjusting burn-in & thinning parameters to meet pre-specified criteria in terms of convergence & effective sample size - i.e. sample size adjusted for autocorrelation - of the MCMC output
 #'
-#' @param MCMC_language character value: designates the \code{MCMC_language} used to write & fit the Bayesian model in R. Current choices are "Nimble" - the default-, "Greta" or "Jags". Note that in case it is "Nimble", package \code{nimble} should be loaded in your search list.
+#' @param MCMC_language character value: designates the \code{MCMC_language} used to write & fit the Bayesian model in R. Current choices are "Nimble" - the default-, "Greta" or "Jags". Note that in case it is "Nimble", package \code{nimble} should be loaded in your search list if not using parallelization.
 #' @param code R object: code for the model that will be used to build the MCMC when \code{MCMC_language} is "Nimble" or "Jags". If "Nimble", must be the name (in R) of the object which is the result of the function \code{nimbleCode}. If "Jags", should be either: (i) a character string which is the name of a txt file that contains the code of the model (as used in the function jags.model): should then end up by ".txt"; or (ii) a character string that contains the text of the Jags code.
 #' @param data R list: a list that will contain the data when \code{MCMC_language} is "Nimble" or "Jags". If "Nimble", will be sent to the \code{data} argument of the \code{nimbleModel} function in \code{nimble} package, i.e. the data that have a random distribution in the model. If \code{MCMC_language} is "Greta", can be used just to document the summary of data in the output.
 #' @param constants R list: a list that will contain the rest of the data (in addition to data) when \code{MCMC_language} is "Nimble". Will be sent to the \code{constants} argument of the \code{nimbleModel} function in \code{nimble} package, i.e. the data that do not have a random distribution in the model. If \code{MCMC_language} is "Greta", can be used just to document the summary of other data in the output.
@@ -36,35 +36,41 @@
 #' The algorithm will not stop if the mean convergence diagnostic is not below this value (unless another limit - e.g. \code{niter.max} - is reached).
 
 #' @param control list of \code{runMCMC_btadjust} control parameters: with the following components:\cr
-#'  \itemize{ \item \code{time.max}: positive number (units: seconds): maximum time of the process in seconds; the program will organize itself to stop before \code{0.95*time.max}. Default to NULL, corresponding to no time constraint.
+#'  \itemize{ \item \code{time.max}: positive number (units: seconds): maximum time of the process in seconds, not including WAIC calculations and extra.calculations; the program will organize itself to stop (not including WAIC calculation and extra calculations as specified in \code{control.MCMC$extraCalculations}) before roughly \code{time.max}. Default to NULL, corresponding to no time constraint except in case of parallelization (see below).
 #'   \item \code{check.convergence}: logical value: should the program check convergence at all? Default to TRUE. See Details.
-#'   \item \code{check.convergence.firstrun}: logical value: should we check convergence after the first run? Default to NULL in which case will depend on \code{MCMC_language}: if "Greta", will be TRUE because warmup phase separated from the rest; otherwise will be FALSE.
+#'   \item \code{check.convergence.firstrun}: logical value: should we check convergence after the first run? Default to NULL in which case will depend on \code{MCMC_language}: if MCMC_language!="Greta" & control.MCMC$n.adapt<=0, will be FALSE otherwise will be TRUE because warmup phase separated from the rest in case of Greta.
 #'   \item \code{recheck.convergence}: logical value: should the algorithm recheck convergence once convergence has been found in a previous run? Default to TRUE.
-#'   \item \code{contype}: character or NULL value: specifies the type of convergence diagnostic used. Currently implemented: "Gelman" for original Gelman-Rubin diagnostic (only possible if \code{Nchains>=2}), "Gelman_new" for the version of the Gelman-Rubin diagnostic in the second version of "Bayesian Data Analysis" (Gelman, Carlin, Stern and Rubin)(only possible if \code{Nchains>=2}), "Geweke" for Geweke diagnostic (at present applied only in case \code{Nchains==1}) and "Heidelberger" for the reciprocal of Heidelberger-Welch first part of convergence diagnostic based on the Cramer-von Mises test statistic. If NULL (the default), chooses "Geweke" in case Nchains==1 and "Gelman" in case Nchains>1.
+#'   \item \code{convtype}: character or NULL value: specifies the type of convergence diagnostic used. Currently implemented: "Gelman" for original Gelman-Rubin diagnostic (only possible if \code{Nchains>=2}), "Gelman_new" for the version of the Gelman-Rubin diagnostic in the second version of "Bayesian Data Analysis" (Gelman, Carlin, Stern and Rubin)(only possible if \code{Nchains>=2}), "Geweke" for Geweke diagnostic (at present applied only in case \code{Nchains==1}) and "Heidelberger" for the reciprocal of Heidelberger-Welch first part of convergence diagnostic based on the Cramer-von Mises test statistic. If NULL (the default), chooses "Geweke" in case Nchains==1 and "Gelman" in case Nchains>1.
 #'   \item \code{convtype.Gelman}: integer value: when \code{convtype=="Gelman"}, do we target the Point estimate diagnostic (value 1) or the Upper C.I. diagnostic (value 2). Default to 2.
 #'   \item \code{convtype.Geweke}: real vector with two components between 0 and 1: (i) the fraction of samples to consider as the beginning of the chain (frac1 in geweke.diag); (ii) the fraction of samples to consider as the end of the chain (frac2 in \code{gewke.diag}). Default to c(0.1,0.5) as in \code{geweke.diag}.
 #'   \item \code{convtype.alpha}: real value between 0 and 1: significance level used in case \code{convtype=="Gelman"} and \code{convtype.Gelman==2}, or \code{convtype=="Heidelberger"}
-#'   \item \code{props.conv}: numeric vector: in case of non convergence: quantiles of number of iterations removed to recheck convergence. Values should be between 0 and 1.
+#'   \item \code{props.conv}: numeric vector: quantiles of number of iterations removed to recheck convergence and number of effective values (if not converged before or \code{conv.thorough.check} is TRUE). Values should be between 0 and 1.
 #'   \item \code{ip.nc}: real value: inflexion point for log(scaleconvs-1); if (very) negative will tend to double the number of iterations in case of non convergence (i.e. add niter iterations) ; if (very) positive will tend to add niter/Ncycles iterations. Default to 0.
-#'   \item \code{conv.thorough.check}: logical value: whether one goes through all the \code{props.conv} proportions to find the best one in terms first of convergence and then of neffs (if TRUE) or stops at the first \code{props.conv} corresponding to convergence (if FALSE, the default).
+#'   \item \code{conv.thorough.check}: logical value: whether one goes through all the \code{props.conv} proportions to find the best one in terms first of convergence (just in terms of respecting the criterion) and then of neffs (in terms of absolute value of number of effective values) (if TRUE) or stops at the first \code{props.conv} corresponding to convergence or does not change if there is no convergence (if FALSE, the default).
 #'   \item \code{neff.method}: character value: method used to calculate the effective sample sizes. Current choice between "Stan" (the default) and "Coda". If "Stan", uses the function \code{monitor} in package \code{rstan}. If "Coda", uses the function \code{effectiveSize} in package \code{coda}.
 #'   \item \code{Ncycles.target}: integer value: targeted number of MCMC runs. Default to 2.
 #'   \item \code{min.Nvalues}: integer value or expression giving an integer value: minimum number of values to diagnose convergence or level of autocorrelation.
 #'   \item \code{round.thinmult}: logical value: should the thin multiplier be rounded to the nearest integer so that past values are precisely positioned on the modified iteration sequence? Default to TRUE. Value of FALSE may not be rigorous or may not converge well.
 #'   \item \code{thinmult.in.resetMV.temporary}: logical value: should the thin multiplier be taken into account in resetting parameter collection in case MCMC_language is "Nimble". Important mainly if control.MCMC$WAIC is TRUE. If TRUE, resetting will be more frequent, and WAIC calculation will be longer and more rigorous. Default to TRUE.
-#'   \item \code{check.thinmult}: logical value: should we check thinmult value after thinmult calculation? If TRUE, it is tested whether thinmult meets specific criteria -relative to convergence reaching conservation, number of effective value reaching conservation, minimum number of output values - min.Nvalues- and proportional reduction of number of effective values - and if not decreased values are tested with the same criteria. If FALSE, only the min.Nvalues criterion is taken into account. Default to FALSE. TRUE values should produce shorter MCMCs, more values in the output, with more autocorrelation.
+#'   \item \code{check.thinmult}: integer value between 1, 2 and 3: how should we check thinmult value after thinmult calculation? If 3, it is tested whether thinmult meets specific criteria -relative to convergence reaching (i.e. if no convergence, no change), number of effective value reaching conservation, minimum number of output values - min.Nvalues- and proportional reduction of number of effective values - and if not decreased values are tested with the same criteria. If 2, the same checkings are done except the one on proportional reduction of effective values. If 1, only the min.Nvalues criterion is taken into account. Default to 2. A value of 3 should produce shorter MCMCs, more values in the output, with more autocorrelation, than a value of 1.
+#'   \item \code{decrease.thinmult.multiplier}: positive number below 1: when adapting the proposed multiplier of thin (thinmult), the multiplier of the current thinmult used to propose a new - smaller - thinmult value, provided thinmult is above decrease.thinmult.threshold. Default to 0.8.
+#'   \item \code{decrease.thinmult.threshold}: positive number above 3: when adapting the proposed multiplier of thin (thinmult), the threshold value for thinmult below which decreases of proposed thinmult are substractions of one unit. Default to 20.
 #'   \item \code{only.final.adapt.thin}: logical value: should the thin parameter be adapted only at the end - so that during running of the MCMC we conserve a sufficient number of values - esp. with respect to min.Nvalues. Default to FALSE.
 #'   \item \code{min.thinmult}: numeric value: minimum value of thin multiplier: if diagnostics suggest to multiply by less than this, this multiplication is not done. Default to 1.1.
+#'   \item \code{force.niter.max}: logical value: if TRUE, the number of iterations is forced to go to niter.max - except for time.max constraints. Default to FALSE.
+#'   \item \code{force.time.max}: logical value: if TRUE, the number of iterations is forced to go to approximately time.max seconds - except for niter.max constraints. Default to FALSE.
+#'   \item \code{time.max.turns.off.niter.max}: logical value: if TRUE, and if time.max is finite, the number of iterations can be greater than niter.max (except if we are only in the phase of force.niter.max or force.time.max). Default to FALSE.
 #'   \item \code{seed}: integer number or NULL value: seed for the pseudo-random number generator inside runMCMC_btadjust. Default to NULL in which case here is no control of this seed.
 #'   \item \code{identifier.to.print}: character string: printed each time an MCMC update is ran to identify the model (esp. if multiple successive calls to \code{runMCMC_btadjust} are made).
 #'   \item \code{safemultiplier.Nvals}: positive number: number bigger than 1 used to multiply the targeted number of effective values in calculations of additional number of iterations. Default to 1.2.
-#'   \item \code{max.prop.decr.neff}: number between 0 and 1 used, if check.thinmult, to decide if we accept dimension reduction - through augmentation of thin parameter with thinmult -: maximum acceptable Proportional Decrease of the number of effective values: guaranties that at least (1-max.prop.decr.neff) times the number of effective values estimated prior to dimension reduction are kept. Default to 0.1.
+#'   \item \code{max.prop.decr.neff}: number between 0 and 1 used, if check.thinmult==3, to decide if we accept dimension reduction - through augmentation of thin parameter with thinmult -: maximum acceptable Proportional Decrease of the number of effective values: guaranties that at least (1-max.prop.decr.neff) times the number of effective values estimated prior to dimension reduction are kept. Default to 0.1.
 #'   \item \code{print.diagnostics}: logical value: should diagnostics be printed each time they are calculated? Default to FALSE.
 #'   \item \code{print.thinmult}: logical value: should the raw multiplier of thin be printed each time it is calculated? Default to TRUE.
 #'   \item \code{innerprint}: logical value: should printings be done inside the function \code{monitor} of \code{rstan} in case \code{neff.method=="Stan"}? Default to FALSE.
 #'   \item \code{remove.fixedchains}: logical value: should we remove Markov chains that do not vary (i.e. whose all parameters have zero variances)? Default to TRUE.
 #'   \item \code{check.installation}: logical value: should the function check installation of packages and programs? Default to TRUE.
 #'   \item \code{save.data}: logical value: should the program save the entire data in the call.params section of the attributes? Default to FALSE, in which case only a summary of data is saved.
+#'   \item \code{conveff.final.allparams}: logical value: should the final convergence/number of effective values calculations in final.diags be done on all parameters? Default to TRUE.
 #'    }
 #' @param control.MCMC list of MCMC control parameters: with the following components - that depend on \code{MCMC_language}:
 #'  \itemize{ \item \code{confModel.expression.toadd} (only for \code{MCMC_language=="Nimble"}): expression to add to \code{confModel} to specify samplers, remove nodes... \code{confModel} should be referred to by \code{confModel[[i]]}. See Details for an example.
@@ -74,24 +80,26 @@
 #' \item \code{RNG.names} (only for \code{MCMC_language=="Jags"}): character vector: name of pseudo-random number generators for each chain. Each component of the vector should be among "base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper", "base::Mersenne-Twister". If less values than \code{Nchains} are provided, they are specified periodically.
 #' \item \code{n_cores} (only for \code{MCMC_language=="Greta"}): integer or NULL: maximum number of cores to use by each sampler.
 #' \item \code{showCompilerOutput} (only for \code{MCMC_language=="Nimble"}): logical value indicating whether details of C++ compilation should be printed. Default to FALSE to get default printings of limited size.
-#' \item \code{buildDerivs} (only for \code{MCMC_language=="Nimble"}): logical value indicating derivatives should be prepared when preparing Nimble model (will esp. allow to use HMC sampler). Default to FALSE.
+#' \item \code{buildDerivs} (only for \code{MCMC_language=="Nimble"}): logical value indicating whether derivatives should be prepared when preparing Nimble model (will esp. allow to use HMC sampler). Default to FALSE.
 #' \item \code{resetMV} (only for \code{MCMC_language=="Nimble"}): logical value to be passed to $run specifying whether previous parameter samples should be reset or not. Default to FALSE to speed up WAIC calculations. You can turn it to TRUE if you wish to speed up runs of MCMC (cf. https://groups.google.com/g/nimble-users/c/RHH9Ybh7bSI/m/Su40lgNRBgAJ).
-#' \item \code{parallelize} (only for \code{MCMC_language=="Jags"} and \code{MCMC_language=="Nimble"}): logical value specifying whether the MCMC should be parallelized within the \code{runMCMC_btadjust} function with the \code{parallel} package (and for the moment default settings of this package). Default to FALSE. In case \code{MCMC_language=="Greta"}, parallelization is managed directly by Greta.
+#' \item \code{parallelize} (only for \code{MCMC_language=="Jags"} and \code{MCMC_language=="Nimble"}): logical value specifying whether the MCMC should be parallelized within the \code{runMCMC_btadjust} function with the \code{parallel} package (and for the moment default settings of this package). Default to FALSE. If TRUE, library \code{parallel} should be loaded. If TRUE and \code{control$time.max} is unspecified or infinite, each parallelized process will have a maximum duration of 30 days. In case \code{MCMC_language=="Greta"}, parallelization is managed directly by Greta.
 #' \item \code{parallelizeInitExpr} (only for \code{MCMC_language=="Jags"} and \code{MCMC_language=="Nimble"}): expression to add in each cluster created by parallelization. Default to \code{expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL})}.
 #' \item \code{useConjugacy} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether Nimble should search for conjugate priors in the model. Default to FALSE. If TRUE, can render model configuration shorter (https://groups.google.com/g/nimble-users/c/a6DFCefYfjU/m/kqUWx9UXCgAJ) at the expense of not allowing any conjugate sampler
 #' \item \code{WAIC} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether WAIC should be calculated online within Nimble. Default to FALSE.
-#' \item \code{WAIC.Nsamples} (only for \code{MCMC_language=="Nimble"}): integer number: number of samples overs which to calculate WAIC. Default to 2000.
-#' \item \code{WAIC.control} (only for \code{MCMC_language=="Nimble"}): named list or list of such named lists: list (or lists) specifying the control parameters to calculate WAIC online within Nimble. Default to list(online=TRUE,dataGroups=NULL,marginalizeNodes=NULL,niterMarginal=1000,convergenceSet=c(0.25,0.5,0.75),thin=TRUE,nburnin_extra=0). Given the way WAIC is here calculated (after convergence and last sample outputs), components thin will be turned to TRUE and nburnin_extra to 0. If several lists are used, only at most the first Nchains lists will be taken into account to calculate WAICs differently on different Markov Chains.
-#' \item \code{APT} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether NimbleAPT should be used as a sampler. Default to FALSE. Note that if TRUE, WAIC is turned to FALSE since it seems this method does not work with nimbleAPT.
-#' \item \code{APT.NTemps} (only for \code{MCMC_language=="Nimble"}): integer number: number of temperatures for NimbleAPT. Default to 7.
-#' \item \code{APT.initTemps} (only for \code{MCMC_language=="Nimble"}): NULL or double vector of length APT.NTemps: initial temperatures for Nimble APT. Default to NULL in which case initial temperatures will be 1:APT.NTemps. Should all be >1?
-#' \item \code{APT.tuneTemps} (only for \code{MCMC_language=="Nimble"}): numerical vector of length 2: values to feed the parameters tuneTemper1 and tuneTemper2 in NimbleAPT. See documentation of NimbleAPT. Default to c(10,0.7).
+#' \item \code{WAIC.Nsamples} (only for \code{MCMC_language=="Nimble"}): integer number: number of (nearly independent) samples of parameters in the posterior distribution over which to calculate WAIC. Default to 2000.
+#' \item \code{WAIC.control} (only for \code{MCMC_language=="Nimble"}): named list or list of such named lists: list (or lists) specifying the control parameters to calculate WAIC online within Nimble. Default to list(online=TRUE,dataGroups=NULL,marginalizeNodes=NULL,niterMarginal=1000,convergenceSet=c(0.25,0.5,0.75),thin=TRUE,nburnin_extra=0). Given the way WAIC is here calculated (after convergence and over the last sample outputs for one chain by named list), components thin will be turned to TRUE and nburnin_extra to 0. If several lists are used, only at most the first Nchains lists will be taken into account to calculate WAICs in different ways on different Markov Chains.
+#' \item \code{APT} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether \code{NimbleAPT} should be used to allow Adaptive Parallel Tempering for at least a subset of the model parameters. If so, the sampler_RW_tempered sampler is declared for all parameters. If wishing to change sampler, use \code{confModel.expression.toadd}. Default to FALSE.
+#' \item \code{APT.NTemps} (only for \code{MCMC_language=="Nimble"}): integer number: number of temperatures for \code{NimbleAPT}. Default to 7.
+#' \item \code{APT.initTemps} (only for \code{MCMC_language=="Nimble"}): NULL or double vector of length \code{APT.NTemps}: initial temperatures for Nimble APT. Default to NULL in which case initial temperatures will be 1:APT.NTemps. The values should be increasing with a first value of 1.
+#' \item \code{APT.tuneTemps} (only for \code{MCMC_language=="Nimble"}): numerical vector of length 2: values to feed the parameters \code{tuneTemper1} and \code{tuneTemper2} in \code{NimbleAPT}. See documentation of \code{NimbleAPT}. Default to c(10,0.7).
 #' \item \code{APT.thinPrintTemps} (only for \code{MCMC_language=="Nimble"}): expression or numerical value : thinning parameter for printing temperatures in case APT. Default to expression(niter/5).
-#' \item \code{includeAllStochNodes} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether all stochastic nodes should be made available in runMCMC_btadjust. Default to FALSE. Maybe useful for the extraCalculations component of control.MCMC.
-#' \item \code{saveAllStochNodes} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether all stochastic nodes should be made available in runMCMC_btadjust and kept in the result of runMCMC_btadjust. Default to FALSE. Note that if TRUE, will change the content of params_saved.
-#' \item \code{includeParentNodes} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether parent stochastic nodes of data should be made available in runMCMC_btadjust. Default to FALSE. Maybe useful for the extraCalculations component of control.MCMC - for example ofr "offline" calculations of WAIC.
-#' \item \code{saveParentNodes} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether parent stochastic nodes of data should be made available in runMCMC_btadjust and kept in the result of runMCMC_btadjust. Default to FALSE. Note that if TRUE, will change the content of params_saved.
-#' \item \code{extraCalculations} (mainly useful for \code{MCMC_language=="Nimble"} but can be used with other languages as well): NULL value or expression that will be evaluated at tyhe end of runMCMC_btadjust. The value of this expression will be saved in the extraResults component of the final.params component of the attributes of the result of runMCMC_btadjust. See the vignette devoted to the use of it. Default to NULL.
+#' \item \code{includeAllStochNodes} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether all stochastic nodes should be made available in \code{runMCMC_btadjust}. Default to FALSE. Maybe useful for the \code{extraCalculations} component of \code{control.MCMC}. Can include more parameters than \code{includeParentNodes}. Can be useful for example to calculate goodness-of-fit p-values.
+#' \item \code{monitorAllStochNodes} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether all stochastic nodes should be monitored for convergence and number of effective values in \code{runMCMC_btadjust}. Default to FALSE.
+#' \item \code{saveAllStochNodes} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether all stochastic nodes should be made available in \code{runMCMC_btadjust} and kept in the result of \code{runMCMC_btadjust}. Default to FALSE. Note that if TRUE, will change the content of \code{params_saved}.
+#' \item \code{includeParentNodes} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether parent stochastic nodes of data should be made available in \code{runMCMC_btadjust}. Default to FALSE. Maybe useful for the \code{extraCalculations} component of \code{control.MCMC} - for example for "offline" calculations of WAIC or DIC (Deviance information criterion).
+#' \item \code{monitorParentNodes} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether parent stochastic nodes of data should be monitored for convergence and number of effective values in \code{runMCMC_btadjust}. Default to FALSE.
+#' \item \code{saveParentNodes} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether parent stochastic nodes of data should be made available in \code{runMCMC_btadjust} and kept in the result of \code{runMCMC_btadjust}. Default to FALSE. Note that if TRUE, will change the content of \code{params_saved}.
+#' \item \code{extraCalculations} (mainly useful for \code{MCMC_language=="Nimble"} but can be used with other languages as well): NULL value or expression that will be evaluated at the end of \code{runMCMC_btadjust}. The value of this expression will be saved in the \code{extraResults} component of the \code{final.params} component of the attributes of the result of \code{runMCMC_btadjust}. See the vignette devoted to the use of it. Default to NULL.
 #'        }
 #'
 #'
@@ -104,6 +112,9 @@
 #'             \item \code{burnin}: number of iterations of the transient (burn-in) period
 #'             \item \code{thin}: number of iterations used for thinning the final output
 #'             \item \code{niter.tot}: total number of iterations (of each MCMC chain)
+#'             \item \code{Nvalues}: number of saved values (over all the MCMC chains)
+#'             \item \code{neff.min}: minimum number of effective values in the final MCMC (over params.conv)
+#'             \item \code{neff.median}: median number of effective values (over params.conv)
 #'             \item \code{WAIC}: results of the calculus of online WAIC (only if control.MCMC$WAIC and \code{MCMC_language=="Nimble"}). One component per component of control.MCMC$control.WAIC. Each component has a WAIC component and then a WAICDetails component.
 #'             \item \code{extraResults}: results of the implementation of control.MCMC$extraCalculations. Can be any kind of R object.
 #'             \item \code{Temps}: results of the series of Temperatures met in APT (only if control.MCMC$APT and \code{MCMC_language=="Nimble"}). One line for each end of $run (=MCMC run).
@@ -131,8 +142,8 @@
 #'             \itemize{ \item \code{params}: parameters of the MCMC (burn-in, thin, niter...)
 #'             \item \code{conv_synth}: synthetic output of convergence diagnostics
 #'             \item \code{neff_synth}: synthetic output for calculations of effective sample sizes
-#'             \item \code{conv}: raw convergence values for all the parameters being diagnosed
-#'             \item \code{neff}: raw effective sample size values for all the parameters being diagnosed
+#'             \item \code{conv}: raw convergence values for all the parameters being diagnosed if control$conveff.final.allparams is FALSE and all the parameters otherwise
+#'             \item \code{neff}: raw effective sample size values for all the parameters being diagnosed if control$conveff.final.allparams is FALSE and all the parameters otherwise
 #'             }
 #'        \item \code{sessionInfo}: a list containing the result of the call to sessionInfo() function at the end of runMCMC_btadjust function; contains info on the platform, versions of packages, R version...;
 #'        \item \code{warnings}: a list of the warning messages issued during fitting; unsure it still works with this version
@@ -161,17 +172,8 @@
 #'
 #'
 #' @examples
-#'  #\code{
-#' # for examples with Nimble or Greta, see the Vignette.
-#' # condition variable of whether installation is OK with Jags to avoid error during package check
-#' condition_jags<-TRUE
-#' if (nchar(system.file(package='rjags'))==0) {condition_jags<-FALSE}
-#' if (nchar(system.file(package='runjags'))==0) {condition_jags<-FALSE}
-#' if (condition_jags)
-#' {suppressWarnings(temp<-runjags::testjags(silent=TRUE))
-#'  if(!(temp$JAGS.available&temp$JAGS.found&temp$JAGS.major==4)) {condition_jags<-FALSE}}
-#'
-#' if (condition_jags) {
+#' # for examples with Nimble or Greta, see the Presentation Vignette.
+#' \dontrun{
 #' #generating data
 #' set.seed(1)
 #' y1000<-rnorm(n=1000,mean=600,sd=30)
@@ -215,7 +217,6 @@
 #'
 #' summary(out.mcmc.Coda)
 #' }
-#' #}
 #' @importFrom stats median rnorm qnorm quantile update var window
 #' @importFrom utils sessionInfo capture.output
 #' @export
@@ -230,13 +231,13 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                                         check.convergence=TRUE,check.convergence.firstrun=NULL,recheck.convergence=TRUE,
                                         convtype=NULL,convtype.Gelman=2,convtype.Geweke=c(0.1,0.5),convtype.alpha=0.05,ip.nc=0,neff.method="Stan",
                                         Ncycles.target=2,props.conv=c(0.25,0.5,0.75),min.Nvalues=300,
-                                        min.thinmult=1.1,safemultiplier.Nvals=1.2,max.prop.decr.neff=0.1,round.thinmult=TRUE,thinmult.in.resetMV.temporary=TRUE,check.thinmult=FALSE,only.final.adapt.thin=FALSE,
-                                        identifier.to.print="",print.diagnostics=FALSE,conv.thorough.check=FALSE,print.thinmult=TRUE,innerprint=FALSE,seed=NULL,remove.fixedchains=TRUE,check.installation=TRUE,save.data=FALSE),
+                                        min.thinmult=1.1, force.niter.max=FALSE, force.time.max=FALSE, time.max.turns.off.niter.max=FALSE, safemultiplier.Nvals=1.2,max.prop.decr.neff=0.1,round.thinmult=TRUE,thinmult.in.resetMV.temporary=TRUE,check.thinmult=2,decrease.thinmult.multiplier=0.8, decrease.thinmult.threshold=20,only.final.adapt.thin=FALSE,
+                                        identifier.to.print="",print.diagnostics=FALSE,conv.thorough.check=FALSE,print.thinmult=TRUE,innerprint=FALSE,seed=NULL,remove.fixedchains=TRUE,check.installation=TRUE,save.data=FALSE,conveff.final.allparams=TRUE),
                            control.MCMC=list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=-1,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),
-                                             n_cores=NULL,showCompilerOutput=FALSE,buildDerivs=FALSE,resetMV=FALSE,parallelize=FALSE, parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL}), useConjugacy=FALSE,
+                                             n_cores=NULL,showCompilerOutput=FALSE,buildDerivs=FALSE,resetMV=FALSE,parallelize=FALSE, parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library("nimble");if(control.MCMC$APT) {library("nimbleAPT")}} else {NULL}), useConjugacy=FALSE,
                                              WAIC=FALSE,WAIC.Nsamples=2000,
                                              WAIC.control=list(online=TRUE,dataGroups=NULL,marginalizeNodes=NULL,niterMarginal=1000,convergenceSet=c(0.25,0.5,0.75),thin=TRUE,nburnin_extra=0),
-                                             APT=FALSE, APT.NTemps=7, APT.initTemps=NULL,APT.tuneTemps=c(10,0.7),APT.thinPrintTemps=expression(niter/5), includeAllStochNodes=FALSE, saveAllStochNodes=FALSE,includeParentNodes=FALSE, saveParentNodes=FALSE, extraCalculations=NULL))
+                                             APT=FALSE, APT.NTemps=7, APT.initTemps=NULL,APT.tuneTemps=c(10,0.7),APT.thinPrintTemps=expression(niter/5), includeAllStochNodes=FALSE, monitorAllStochNodes=FALSE, saveAllStochNodes=FALSE,includeParentNodes=FALSE,monitorParentNodes=FALSE, saveParentNodes=FALSE, extraCalculations=NULL))
 
 {
   time.MCMC.Preparation0<-Sys.time()
@@ -262,6 +263,35 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     ## 00- code of functions that will be used in the sequel:
     ########################################
 
+    getseeds <- function(ntasks, iseed) {
+      RNGkind("L'Ecuyer-CMRG")
+      set.seed(iseed)
+      seeds <- vector("list", ntasks)
+      seeds[[1]] <- .Random.seed
+      for (i in seq_len(ntasks - 1)) {
+        seeds[[i + 1]] <- parallel::nextRNGSubStream(seeds[[i]])
+      }
+      seeds
+    }
+    worker.seed <- function(seed) {
+      assign(".Random.seed", seed, envir=.GlobalEnv)}
+
+    window.seq<-function(out,start=NULL,end=NULL,thin=1)
+    {#out should be a mcmc.list
+      #this function does the same thing as window on mcmc.list except that is allows going backwards thanks to the possibilities of function seq
+      #actually it reverses the order to start from the end first to start from the send then reverses the result
+      if (is.null(start)) {start<-1}
+      if (is.null(end)) {end<-dim(out[[1]])[1]}
+      indices<-rev(seq(from=end,to=start,by=-thin))
+      res<-out
+      for (i in 1:length(out))
+      {
+        res[[i]]<-res[[i]][indices,]
+      }
+      res<-coda::as.mcmc.list(lapply(res,function(x){y=coda::as.mcmc(x);attributes(y)[["mcpar"]]<-c(min(indices), max(indices), thin);y}))
+      res
+    }
+
     formatC_adapted<-function(x,digits=3)
     {#puts numbers in an adequate format for printing
       #as.double(formatC(as.double(formatC(x,digits=digits,format="f")),format="g"))
@@ -270,15 +300,12 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     logit<-function(p) {log(p/(1-p))}
 
     conveff<-function(out,print.diagnostics=FALSE)
-    {### assumes the model is in object "out"
-      #out<-samplesList
-      #out<-window(samplesList,thin=12)
-
+    {
       if (length(grep("logProb_",dimnames(out[[1]])[[2]]))>0)
       {
         out<-coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x[,-grep("logProb_",dimnames(x)[[2]])])}))
       }
-      tempres_params<-cbind.data.frame(Nchains=length(out),thin=thin*(attributes(out[[1]]))$mcpar[3],niter.tot=niter.tot,Nvalues=dim(out[[1]])[1]*length(out),nu.burn=nburnin.min+sum(numIter.samplesList[1:(index.conv.local-1)]))
+      tempres_params<-cbind.data.frame(Nchains=length(out),thin=thin*(attributes(out[[1]]))$mcpar[3],niter.tot=niter.tot,Nvalues=dim(out[[1]])[1]*length(out),nu.burn= nburnin.min0+sum(numIter.samplesList[1:(index.conv.local-1)]))
       tempres_params_print<-tempres_params
       row.names(tempres_params_print)<-"MCMC parameters"
 
@@ -351,23 +378,29 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     }	#END conveff function
 
 
-    conveff_final<-function(out,print.diagnostics=FALSE)
-    {### assumes the model is in object "out"
-      #out<-samplesList
-      #out<-window(samplesList,thin=12)
+    conveff_final<-function(out,indices.conv,conveff.final.allparams=TRUE,print.diagnostics=FALSE)
+    {
+      condition.conv<-is.element(1:(dim(out[[1]])[2]),indices.conv)
+      if (!conveff.final.allparams) {
+        out<-coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x[,condition.conv])}))
+        condition.conv<-rep(TRUE,dim(out[[1]])[2])
+        }
+
 
       if (length(grep("logProb_",dimnames(out[[1]])[[2]]))>0)
       {
+        condition.conv<-condition.conv[-grep("logProb_",dimnames(out[[1]])[[2]])]
         out<-coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x[,-grep("logProb_",dimnames(x)[[2]])])}))
       }
-      tempres_params<-cbind.data.frame(Nchains=length(out),thin=thin*(attributes(out[[1]]))$mcpar[3],niter.tot=niter.tot,Nvalues=dim(out[[1]])[1]*length(out),nu.burn=nburnin.min+sum(numIter.samplesList[1:(index.conv.local-1)]))
+
+      tempres_params<-cbind.data.frame(Nchains=length(out),thin=thin*(attributes(out[[1]]))$mcpar[3],niter.tot=niter.tot,Nvalues=dim(out[[1]])[1]*length(out),nu.burn= nburnin.min0+sum(numIter.samplesList[1:(index.conv.local-1)]))
       tempres_params_print<-tempres_params
       row.names(tempres_params_print)<-"MCMC parameters"
 
       if (control$convtype=="Gelman") {
         tempg<-coda::gelman.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x)})),confidence=1-control$convtype.alpha,autoburnin=FALSE,multivariate=FALSE)[[1]]
         tempres_conv<-cbind.data.frame(max_gelm_Upper_C_I=max(tempg[,2])[1],med_gelm_Upper_C_I=median(tempg[,2])[1],mean_gelm_Upper_C_I=mean(tempg[,2]),max_gelm_Point_Est=max(tempg[,1])[1],name_max_gelm_Point_Est=names(tempg[,1])[tempg[,1]==max(tempg[,1])][1],med_gelm_Point_Est=median(tempg[,1])[1],mean_gelm_Point_Est=mean(tempg[,1]),prop_gelm_Point_Est_above_1p2=mean(tempg[,1]>1.2),prop_gelm_Point_Est_above_1p05=mean(tempg[,1]>1.05),prop_gelm_Point_Est_above_1p01=mean(tempg[,1]>1.01))
-        tempres_conv_print<-cbind.data.frame(max=formatC_adapted(c(max(tempg[,2])[1],max(tempg[,1])[1])),median=formatC_adapted(c(median(tempg[,2])[1],median(tempg[,1])[1])),mean=formatC_adapted(c(mean(tempg[,2]),mean(tempg[,1]))),name_max=c(names(tempg[,2])[tempg[,2]==max(tempg[,2])][1],names(tempg[,1])[tempg[,1]==max(tempg[,1])][1]),prop_ab_1p2=formatC_adapted(c(mean(tempg[,2]>1.2),mean(tempg[,1]>1.2))),prop_ab_1p05=formatC_adapted(c(mean(tempg[,2]>1.05),mean(tempg[,1]>1.05))),prop_ab_1p01=formatC_adapted(c(mean(tempg[,2]>1.01),mean(tempg[,1]>1.01))))
+        tempres_conv_print<-cbind.data.frame(max=formatC_adapted(c(max(tempg[condition.conv,2])[1],max(tempg[condition.conv,1])[1])),median=formatC_adapted(c(median(tempg[condition.conv,2])[1],median(tempg[condition.conv,1])[1])),mean=formatC_adapted(c(mean(tempg[condition.conv,2]),mean(tempg[condition.conv,1]))),name_max=c(names(tempg[condition.conv,2])[tempg[condition.conv,2]==max(tempg[condition.conv,2])][1],names(tempg[condition.conv,1])[tempg[condition.conv,1]==max(tempg[condition.conv,1])][1]),prop_ab_1p2=formatC_adapted(c(mean(tempg[condition.conv,2]>1.2),mean(tempg[condition.conv,1]>1.2))),prop_ab_1p05=formatC_adapted(c(mean(tempg[condition.conv,2]>1.05),mean(tempg[condition.conv,1]>1.05))),prop_ab_1p01=formatC_adapted(c(mean(tempg[condition.conv,2]>1.01),mean(tempg[condition.conv,1]>1.01))))
         row.names(tempres_conv_print)<-c("Gelman_Upper_C_I","Gelman_Point_Est")
       }
 
@@ -376,21 +409,21 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         row.names(tempg)<-as.character(tempg[,1])
         tempg<-tempg[,2,drop=FALSE]
         tempres_conv<-cbind.data.frame(max_gelm_Point_Est=max(tempg[,1])[1],name_max_gelm_Point_Est=row.names(tempg)[tempg[,1]==max(tempg[,1])][1],med_gelm_Point_Est=median(tempg[,1])[1],mean_gelm_Point_Est=mean(tempg[,1]),prop_gelm_Point_Est_above_1p2=mean(tempg[,1]>1.2),prop_gelm_Point_Est_above_1p05=mean(tempg[,1]>1.05),prop_gelm_Point_Est_above_1p01=mean(tempg[,1]>1.01))
-        tempres_conv_print<-cbind.data.frame(max=formatC_adapted(c(max(tempg[,1])[1])),median=formatC_adapted(c(median(tempg[,1])[1])),mean=formatC_adapted(c(mean(tempg[,1]))),name_max=c(row.names(tempg)[tempg[,1]==max(tempg[,1])][1]),prop_ab_1p2=formatC_adapted(c(mean(tempg[,1]>1.2))),prop_ab_1p05=formatC_adapted(c(mean(tempg[,1]>1.05))),prop_ab_1p01=formatC_adapted(c(mean(tempg[,1]>1.01))))
+        tempres_conv_print<-cbind.data.frame(max=formatC_adapted(c(max(tempg[condition.conv,1])[1])),median=formatC_adapted(c(median(tempg[condition.conv,1])[1])),mean=formatC_adapted(c(mean(tempg[condition.conv,1]))),name_max=c(row.names(tempg)[tempg[condition.conv,1]==max(tempg[condition.conv,1])][1]),prop_ab_1p2=formatC_adapted(c(mean(tempg[condition.conv,1]>1.2))),prop_ab_1p05=formatC_adapted(c(mean(tempg[condition.conv,1]>1.05))),prop_ab_1p01=formatC_adapted(c(mean(tempg[condition.conv,1]>1.01))))
         row.names(tempres_conv_print)<-c("Gelman_Point_Est")
       }
 
       if (control$convtype=="Geweke") {
         tempg<-abs(coda::geweke.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x)}))[[1]],frac1=control$convtype.Geweke[1],frac2=control$convtype.Geweke[2])$z)
         tempres_conv<-cbind.data.frame(max_gew=max(tempg),med_gew=median(tempg),mean_gew=mean(tempg),name_max_gew=names(tempg)[tempg==max(tempg)][1],prop_gew_above_p975=mean(tempg>qnorm(0.975)),prop_gew_above_p995=mean(tempg>qnorm(0.995)),prop_gew_above_p9995=mean(tempg>qnorm(0.9995)))
-        tempres_conv_print<-cbind.data.frame(max=formatC_adapted(max(tempg)),median=formatC_adapted(median(tempg)),mean=formatC_adapted(mean(tempg)),name_max=names(tempg)[tempg==max(tempg)][1],prop_ab_p975=formatC_adapted(mean(tempg>qnorm(0.975))),prop_ab_p995=formatC_adapted(mean(tempg>qnorm(0.995))),prop_ab_p9995=formatC_adapted(mean(tempg>qnorm(0.9995))))
+        tempres_conv_print<-cbind.data.frame(max=formatC_adapted(max(tempg[condition.conv])),median=formatC_adapted(median(tempg[condition.conv])),mean=formatC_adapted(mean(tempg[condition.conv])),name_max=names(tempg[condition.conv])[tempg[condition.conv]==max(tempg[condition.conv])][1],prop_ab_p975=formatC_adapted(mean(tempg[condition.conv]>qnorm(0.975))),prop_ab_p995=formatC_adapted(mean(tempg[condition.conv]>qnorm(0.995))),prop_ab_p9995=formatC_adapted(mean(tempg[condition.conv]>qnorm(0.9995))))
         row.names(tempres_conv_print)<-c("Geweke")
       }
 
       if (control$convtype=="Heidelberger") {
         tempg<-1-(coda::heidel.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x)}))[[1]],pvalue=control$convtype.alpha)[,"stest"])
         tempres_conv<-cbind.data.frame(max_gew=max(tempg),med_gew=median(tempg),mean_gew=mean(tempg),name_max_gew=names(tempg)[tempg==max(tempg)][1],prop_gew_above_p975=mean(tempg>qnorm(0.975)),prop_gew_above_p995=mean(tempg>qnorm(0.995)),prop_gew_above_p9995=mean(tempg>qnorm(0.9995)))
-        tempres_conv_print<-cbind.data.frame(max=formatC_adapted(max(tempg)),median=formatC_adapted(median(tempg)),mean=formatC_adapted(mean(tempg)),name_max=names(tempg)[tempg==max(tempg)][1],prop_ab_p975=formatC_adapted(mean(tempg>qnorm(0.975))),prop_ab_p995=formatC_adapted(mean(tempg>qnorm(0.995))),prop_ab_p9995=formatC_adapted(mean(tempg>qnorm(0.9995))))
+        tempres_conv_print<-cbind.data.frame(max=formatC_adapted(max(tempg[condition.conv])),median=formatC_adapted(median(tempg[condition.conv])),mean=formatC_adapted(mean(tempg[condition.conv])),name_max=names(tempg[condition.conv])[tempg[condition.conv]==max(tempg[condition.conv])][1],prop_ab_p975=formatC_adapted(mean(tempg[condition.conv]>qnorm(0.975))),prop_ab_p995=formatC_adapted(mean(tempg[condition.conv]>qnorm(0.995))),prop_ab_p9995=formatC_adapted(mean(tempg[condition.conv]>qnorm(0.9995))))
         row.names(tempres_conv_print)<-c("Heidelberger")
       }
 
@@ -414,7 +447,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
 
       tempres_neff<-cbind.data.frame(min_neff=min(tempm)[1],name_min_neff=names(tempm)[tempm==min(tempm)][1],med_neff=median(tempm),mean_neff=mean(tempm),prop_neff_below_1000=mean(tempm<1000),prop_neff_below_5000=mean(tempm<5000),prop_neff_below_10000=mean(tempm<10000))
-      tempres_neff_print<-cbind.data.frame(min=formatC_adapted(min(tempm)[1]),median=formatC_adapted(median(tempm)),mean=formatC_adapted(mean(tempm)),name_min=names(tempm)[tempm==min(tempm)][1],prop_bel_1000=formatC_adapted(mean(tempm<1000)),prop_bel_5000=formatC_adapted(mean(tempm<5000)),prop_bel_10000=formatC_adapted(mean(tempm<10000)))
+      tempres_neff_print<-cbind.data.frame(min=formatC_adapted(min(tempm[condition.conv])[1]),median=formatC_adapted(median(tempm[condition.conv])),mean=formatC_adapted(mean(tempm[condition.conv])),name_min=names(tempm[condition.conv])[tempm[condition.conv]==min(tempm[condition.conv])][1],prop_bel_1000=formatC_adapted(mean(tempm[condition.conv]<1000)),prop_bel_5000=formatC_adapted(mean(tempm[condition.conv]<5000)),prop_bel_10000=formatC_adapted(mean(tempm[condition.conv]<10000)))
       row.names(tempres_neff_print)<-"Neff            "
       #tempressimple<-tempres[,c("maxgelm_Point_Est","medelm1","min_neff","med_neff")]
       if (print.diagnostics) {
@@ -547,13 +580,13 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
       if (!is.null(neff.med)) {if((diagsref$med_neff/neff.med)<refratio) {refratio=diagsref$med_neff/neff.med}}
       if (!is.null(neff.mean)) {if((diagsref$mean_neff/neff.mean)<refratio) {refratio=diagsref$mean_neff/neff.mean}}
 
-      if (!is.null(neff.min)) {if(neffs.reached & diags$min_neff<(1-max.prop.decr.neff)*refratio*neff.min) {neffs.conserved<-FALSE}}
-      if (!is.null(neff.med)) {if(neffs.reached & diags$med_neff<(1-max.prop.decr.neff)*refratio*neff.med) {neffs.conserved<-FALSE}}
-      if (!is.null(neff.mean)) {if(neffs.reached & diags$mean_neff<(1-max.prop.decr.neff)*refratio*neff.mean) {neffs.conserved<-FALSE}}
+      if (!is.null(neff.min)) {if(diags$min_neff<(1-max.prop.decr.neff)*refratio*neff.min) {neffs.conserved<-FALSE}}
+      if (!is.null(neff.med)) {if(diags$med_neff<(1-max.prop.decr.neff)*refratio*neff.med) {neffs.conserved<-FALSE}}
+      if (!is.null(neff.mean)) {if(diags$mean_neff<(1-max.prop.decr.neff)*refratio*neff.mean) {neffs.conserved<-FALSE}}
 
-      if (!is.null(neff.min)) {if(!neffs.reached & diags$min_neff<refratio*neff.min) {neffs.conserved<-FALSE}}
-      if (!is.null(neff.med)) {if(!neffs.reached & diags$med_neff<refratio*neff.med) {neffs.conserved<-FALSE}}
-      if (!is.null(neff.mean)) {if(!neffs.reached & diags$mean_neff<refratio*neff.mean) {neffs.conserved<-FALSE}}
+      #if (!is.null(neff.min)) {if(!neffs.reached & diags$min_neff<refratio*neff.min) {neffs.conserved<-FALSE}}
+      #if (!is.null(neff.med)) {if(!neffs.reached & diags$med_neff<refratio*neff.med) {neffs.conserved<-FALSE}}
+      #if (!is.null(neff.mean)) {if(!neffs.reached & diags$mean_neff<refratio*neff.mean) {neffs.conserved<-FALSE}}
 
       return(neffs.conserved)
     }
@@ -565,9 +598,10 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
       if(adapt.thin)
       {#neffmax<-max(c(neff.min,neff.med,neff.mean))
         N<-diags$Nvalues
-        if (!is.null(neff.min)) {thinmult<-max(thinmult,N/diags$min_neff*neff.min/neff.max) }
-        if (!is.null(neff.med)) {thinmult<-max(thinmult,N/diags$med_neff*neff.med/neff.max)}
-        if (!is.null(neff.mean)) {thinmult<-max(thinmult,N/diags$mean_neff*neff.mean/neff.max)}
+        #added minimum in the following formulas to guarantee that the resulting thinned Markov Chains will have at least around 10 values per chain
+        if (!is.null(neff.min)) {thinmult<-min(max(thinmult,N/diags$min_neff*neff.min/neff.max),N/Nchains/10) }
+        if (!is.null(neff.med)) {thinmult<-min(max(thinmult,N/diags$med_neff*neff.med/neff.max),N/Nchains/10)}
+        if (!is.null(neff.mean)) {thinmult<-min(max(thinmult,N/diags$mean_neff*neff.mean/neff.max),N/Nchains/10)}
       }
 
       return(thinmult)
@@ -623,12 +657,12 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     ### putting the control argument in the good format in case it is specified partially
     control0<-list(time.max=NULL,check.convergence=TRUE,check.convergence.firstrun=NULL,recheck.convergence=TRUE,convtype=NULL,
                    convtype.Gelman=2,convtype.Geweke=c(0.1,0.5),convtype.alpha=0.05,ip.nc=0,neff.method="Stan",Ncycles.target=2,props.conv=c(0.25,0.5,0.75),min.Nvalues=300,
-                   min.thinmult=1.1,safemultiplier.Nvals=1.2,max.prop.decr.neff=0.1,round.thinmult=TRUE,thinmult.in.resetMV.temporary=TRUE,check.thinmult=FALSE,only.final.adapt.thin=FALSE,
-                   identifier.to.print="",print.diagnostics=FALSE,conv.thorough.check=FALSE,print.thinmult=TRUE,innerprint=FALSE,seed=NULL,remove.fixedchains=TRUE,check.installation=TRUE,save.data=FALSE)
+                   min.thinmult=1.1, force.niter.max=FALSE, force.time.max=FALSE, time.max.turns.off.niter.max=FALSE, safemultiplier.Nvals=1.2,max.prop.decr.neff=0.1,round.thinmult=TRUE,thinmult.in.resetMV.temporary=TRUE,check.thinmult=2,decrease.thinmult.multiplier=0.8, decrease.thinmult.threshold=20,only.final.adapt.thin=FALSE,
+                   identifier.to.print="",print.diagnostics=FALSE,conv.thorough.check=FALSE,print.thinmult=TRUE,innerprint=FALSE,seed=NULL,remove.fixedchains=TRUE,check.installation=TRUE,save.data=FALSE,conveff.final.allparams=TRUE)
 
     ### checking all the names of arguments of control are in control0; otherwise stops because arguments are not intrepretable
     if (length(setdiff(names(control),names(control0)))>0)
-    {stop("The names of the control argument do not match the default names")}
+    {stop(paste0("The names of the control argument do not match the default names (unmatched names: ",paste(setdiff(names(control),names(control0)),collapse=", "),")"))}
 
     ### puts the components of control into control0:
     control0[names(control)]<-control
@@ -641,11 +675,11 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
 
     ### putting the control.MCMC argument in the good format in case it is specified partially: same sequence as for control/control0:
-    control.MCMC0<-list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=-1,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),n_cores=NULL,showCompilerOutput=FALSE,buildDerivs=FALSE,resetMV=FALSE,parallelize=FALSE,parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL}),useConjugacy=FALSE,WAIC=FALSE,WAIC.Nsamples=2000,
+    control.MCMC0<-list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=-1,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),n_cores=NULL,showCompilerOutput=FALSE,buildDerivs=FALSE,resetMV=FALSE,parallelize=FALSE,parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library("nimble");if(control.MCMC$APT) {library("nimbleAPT")}} else {NULL}),useConjugacy=FALSE,WAIC=FALSE,WAIC.Nsamples=2000,
                         WAIC.control=list(online=TRUE,dataGroups=NULL,marginalizeNodes=NULL,niterMarginal=1000,convergenceSet=c(0.25,0.5,0.75),thin=TRUE,nburnin_extra=0),
-                        APT=FALSE, APT.NTemps=7, APT.initTemps=NULL,APT.tuneTemps=c(10,0.7),APT.thinPrintTemps=expression(niter/5),includeAllStochNodes=FALSE, saveAllStochNodes=FALSE, includeParentNodes=FALSE, saveParentNodes=FALSE, extraCalculations=NULL)
+                        APT=FALSE, APT.NTemps=7, APT.initTemps=NULL,APT.tuneTemps=c(10,0.7),APT.thinPrintTemps=expression(niter/5),includeAllStochNodes=FALSE, monitorAllStochNodes=FALSE, saveAllStochNodes=FALSE, includeParentNodes=FALSE, monitorParentNodes=FALSE, saveParentNodes=FALSE, extraCalculations=NULL)
     if (length(setdiff(names(control.MCMC),names(control.MCMC0)))>0)
-    {stop("The names of the control.MCMC argument do not match the default names")}
+    {stop(paste0("The names of the control.MCMC argument do not match the default names (unmatched names: ",paste(setdiff(names(control.MCMC),names(control.MCMC0)),collapse=", "),")"))}
     if (length(intersect(names(control.MCMC),names(control.MCMC0)))<length(names(control.MCMC0)))
     {control.MCMC0[names(control.MCMC)]<-control.MCMC}
     ### INACTIVATED: putting in control.MCMC parameters that could have been passed directly to the function, not in the control.MCMC argument:
@@ -679,7 +713,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
     ## checking adequacy of control$convtype
     if (length(control$convtype)>1) {print("control$convtype has more than one element. Reduced to its first element"); control$convtype<-control$convtype[[1]]}
-    if (!is.character(control$convtype)) {stop("control$save.data is not of character type as it should be")}
+    if (!is.character(control$convtype)) {stop("control$convtype is not of character type as it should be")}
     if (!is.element(control$convtype, c("Gelman","Gelman_new","Geweke","Heidelberger"))) {stop("Parameter convtype in control argument should be equal either to \"Gelman\", \"Gelman_new\", \"Geweke\" or \"Heidelberger\": please change this parameter")}
 
     ## checking adequacy between convtype and number of MCMC chains
@@ -689,7 +723,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
     ## checking adequacy of control$neff.method
     if (length(control$neff.method)>1) {print("control$neff.method has more than one element. Reduced to its first element"); control$neff.method<-control$neff.method[[1]]}
-    if (!is.character(control$neff.method)) {stop("control$save.data is not of character type as it should be")}
+    if (!is.character(control$neff.method)) {stop("control$neff.method is not of character type as it should be")}
     if (!is.element(control$neff.method, c("Stan","Coda"))) {stop("Parameter neff.method in control argument should be equal either to \"Stan\", or \"Coda\": please change this parameter")}
 
     if (length(control$check.installation)>1) {print("control$check.installation has more than one element. Reduced to its first element"); control$check.installation<-control$check.installation[[1]]}
@@ -701,6 +735,11 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     if (length(control$save.data)==0) {stop("control$save.data has zero length. Not possible")}
     ## stop if control$save.data has one element and is not logical
     if (length(control$save.data)==1 & !is.logical(control$save.data)) {stop("control$save.data is not of logical type.")}
+
+    if (length(control$conveff.final.allparams)>1) {print("control$conveff.final.allparams has more than one element. Reduced to its first element"); control$conveff.final.allparams<-control$conveff.final.allparams[[1]]}
+    if (length(control$conveff.final.allparams)==0) {stop("control$conveff.final.allparams has zero length. Not possible")}
+    ## stop if control$conveff.final.allparams has one element and is not logical
+    if (length(control$conveff.final.allparams)==1 & !is.logical(control$conveff.final.allparams)) {stop("control$conveff.final.allparams is not of logical type.")}
 
     if (length(control$conv.thorough.check)>1) {print("control$conv.thorough.check has more than one element. Reduced to its first element"); control$conv.thorough.check<-control$conv.thorough.check[[1]]}
     if (length(control$conv.thorough.check)==0) {stop("control$conv.thorough.check has zero length. Not possible")}
@@ -716,7 +755,22 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     if (length(control$check.thinmult)>1) {print("control$check.thinmult has more than one element. Reduced to its first element"); control$check.thinmult<-control$check.thinmult[[1]]}
     if (length(control$check.thinmult)==0) {stop("control$check.thinmult has zero length. Not possible")}
     ## stop if control$check.thinmult has one element and is not logical
-    if (length(control$check.thinmult)==1 & !is.logical(control$check.thinmult)) {stop("control$check.thinmult is not of logical type.")}
+    if (length(control$check.thinmult)==1 & !is.numeric(control$check.thinmult)) {stop("control$check.thinmult is not of numeric type.")}
+    if (length(control$check.thinmult)==1 & !is.element(control$check.thinmult,c(1,2,3))) {stop("control$check.thinmult should take its value among 1, 2 or 3.")}
+
+
+    if (length(control$decrease.thinmult.multiplier)>1) {print("control$decrease.thinmult.multiplier has more than one element. Reduced to its first element"); control$decrease.thinmult.multiplier<-control$decrease.thinmult.multiplier[[1]]}
+    if (length(control$decrease.thinmult.multiplier)==0) {stop("control$decrease.thinmult.multiplier has zero length. Not possible")}
+    if (length(control$decrease.thinmult.multiplier)==1 & !is.numeric(control$decrease.thinmult.multiplier)) {stop("control$decrease.thinmult.multiplier is not of numeric type.")}
+    if (length(control$decrease.thinmult.multiplier)==1 & (control$decrease.thinmult.multiplier>=1)) {stop("control$decrease.thinmult.multiplier should take its value below 1.")}
+    if (length(control$decrease.thinmult.multiplier)==1 & (control$decrease.thinmult.multiplier<=0)) {stop("control$decrease.thinmult.multiplier should take its value above 0.")}
+
+    if (length(control$decrease.thinmult.threshold)>1) {print("control$decrease.thinmult.threshold has more than one element. Reduced to its first element"); control$decrease.thinmult.threshold<-control$decrease.thinmult.threshold[[1]]}
+    if (length(control$decrease.thinmult.threshold)==0) {stop("control$decrease.thinmult.threshold has zero length. Not possible")}
+    if (length(control$decrease.thinmult.threshold)==1 & !is.numeric(control$decrease.thinmult.threshold)) {stop("control$decrease.thinmult.threshold is not of numeric type.")}
+    if (length(control$decrease.thinmult.threshold)==1 & (control$decrease.thinmult.threshold<=3)) {stop("control$decrease.thinmult.threshold should take its value above 3.")}
+    #to ensure the value is integer, we round it:
+    control$decrease.thinmult.threshold<-round(control$decrease.thinmult.threshold)
 
     if (length(control$thinmult.in.resetMV.temporary)>1) {print("control$thinmult.in.resetMV.temporary has more than one element. Reduced to its first element"); control$thinmult.in.resetMV.temporary<-control$thinmult.in.resetMV.temporary[[1]]}
     if (length(control$thinmult.in.resetMV.temporary)==0) {stop("control$thinmult.in.resetMV.temporary has zero length. Not possible")}
@@ -740,6 +794,26 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     ## stop if control$print.thinmult has one element and is not logical
     if (length(control$print.thinmult)==1 & !is.logical(control$print.thinmult)) {stop("control$print.thinmult is not of logical type.")}
 
+    ## checking adequacy of control$force.niter.max
+    if (length(control$force.niter.max)>1) {print("control$force.niter.max has more than one element. Reduced to its first element"); control$force.niter.max<-control$force.niter.max[[1]]}
+    if (length(control$force.niter.max)==0) {stop("control$force.niter.max has zero length. Not possible")}
+    ## stop if control$force.niter.max has one element and is not logical
+    if (length(control$force.niter.max)==1 & !is.logical(control$force.niter.max)) {stop("control$force.niter.max is not of logical type.")}
+    if (control$force.niter.max & !is.finite(niter.max)) {control$force.niter.max<-FALSE; print("control$force.niter.max turned to FALSE because niter.max is not finite")}
+
+    ## checking adequacy of control$force.time.max
+    if (length(control$force.time.max)>1) {print("control$force.time.max has more than one element. Reduced to its first element"); control$force.time.max<-control$force.time.max[[1]]}
+    if (length(control$force.time.max)==0) {stop("control$force.time.max has zero length. Not possible")}
+    ## stop if control$force.time.max has one element and is not logical
+    if (length(control$force.time.max)==1 & !is.logical(control$force.time.max)) {stop("control$force.time.max is not of logical type.")}
+    if (control$force.time.max & !is.finite(control$time.max)) {control$force.time.max<-FALSE; print("control$force.time.max turned to FALSE because time.max is not finite")}
+
+    ## checking adequacy of control$time.max.turns.off.niter.max
+    if (length(control$time.max.turns.off.niter.max)>1) {print("control$time.max.turns.off.niter.max has more than one element. Reduced to its first element"); control$time.max.turns.off.niter.max<-control$time.max.turns.off.niter.max[[1]]}
+    if (length(control$time.max.turns.off.niter.max)==0) {stop("control$time.max.turns.off.niter.max has zero length. Not possible")}
+    ## stop if control$time.max.turns.off.niter.max has one element and is not logical
+    if (length(control$time.max.turns.off.niter.max)==1 & !is.logical(control$time.max.turns.off.niter.max)) {stop("control$time.max.turns.off.niter.max is not of logical type.")}
+    if (control$time.max.turns.off.niter.max & !is.finite(control$time.max)) {control$time.max.turns.off.niter.max<-FALSE; print("control$time.max.turns.off.niter.max turned to FALSE because control$time.max is not finite")}
 
     ## checking adequacy of innerprint
     if (length(control$innerprint)>1) {print("control$innerprint has more than one element. Reduced to its first element"); control$innerprint<-control$innerprint[[1]]}
@@ -881,6 +955,11 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     ## stop if control.MCMC$includeAllStochNodes has one element and is not logical
     if (length(control.MCMC$includeAllStochNodes)==1 & !is.logical(control.MCMC$includeAllStochNodes)) {stop("control.MCMC$includeAllStochNodes is not of logical type.")}
 
+    if (length(control.MCMC$monitorAllStochNodes)>1) {print("control.MCMC$monitorAllStochNodes has more than one element. Reduced to its first element"); control.MCMC$monitorAllStochNodes<-control.MCMC$monitorAllStochNodes[[1]]}
+    if (length(control.MCMC$monitorAllStochNodes)==0) {stop("control.MCMC$monitorAllStochNodes has zero length. Not possible")}
+    ## stop if control.MCMC$monitorAllStochNodes has one element and is not logical
+    if (length(control.MCMC$monitorAllStochNodes)==1 & !is.logical(control.MCMC$monitorAllStochNodes)) {stop("control.MCMC$monitorAllStochNodes is not of logical type.")}
+
     if (length(control.MCMC$saveAllStochNodes)>1) {print("control.MCMC$saveAllStochNodes has more than one element. Reduced to its first element"); control.MCMC$saveAllStochNodes<-control.MCMC$saveAllStochNodes[[1]]}
     if (length(control.MCMC$saveAllStochNodes)==0) {stop("control.MCMC$saveAllStochNodes has zero length. Not possible")}
     ## stop if control.MCMC$saveAllStochNodes has one element and is not logical
@@ -890,6 +969,11 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     if (length(control.MCMC$includeParentNodes)==0) {stop("control.MCMC$includeParentNodes has zero length. Not possible")}
     ## stop if control.MCMC$includeParentNodes has one element and is not logical
     if (length(control.MCMC$includeParentNodes)==1 & !is.logical(control.MCMC$includeParentNodes)) {stop("control.MCMC$includeParentNodes is not of logical type.")}
+
+    if (length(control.MCMC$monitorParentNodes)>1) {print("control.MCMC$monitorParentNodes has more than one element. Reduced to its first element"); control.MCMC$monitorParentNodes<-control.MCMC$monitorParentNodes[[1]]}
+    if (length(control.MCMC$monitorParentNodes)==0) {stop("control.MCMC$monitorParentNodes has zero length. Not possible")}
+    ## stop if control.MCMC$monitorParentNodes has one element and is not logical
+    if (length(control.MCMC$monitorParentNodes)==1 & !is.logical(control.MCMC$monitorParentNodes)) {stop("control.MCMC$monitorParentNodes is not of logical type.")}
 
     if (length(control.MCMC$saveParentNodes)>1) {print("control.MCMC$saveParentNodes has more than one element. Reduced to its first element"); control.MCMC$saveParentNodes<-control.MCMC$saveParentNodes[[1]]}
     if (length(control.MCMC$saveParentNodes)==0) {stop("control.MCMC$saveParentNodes has zero length. Not possible")}
@@ -994,7 +1078,8 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     if (control$check.installation)
     {
       if (MCMC_language=="Nimble" & !control.MCMC$parallelize & sum(search()=="package:nimble")==0) {stop("Since MCMC_language is \"Nimble\", library \"nimble\" should be loaded which is not the case")}
-      if (MCMC_language=="Nimble" & control.MCMC$APT & !control.MCMC$parallelize & sum(search()=="package:nimbleAPT")==0) {stop("Since MCMC_language is \"Nimble\", library \"nimble\" should be loaded which is not the case")}
+      if ((MCMC_language=="Nimble"|MCMC_language=="Jags") & control.MCMC$parallelize & sum(search()=="package:parallel")==0) {stop("Since MCMC_language is \"Nimble\" or \"Jags\", and parallelization is required, library \"parallel\" should be loaded which is not the case")}
+      if (MCMC_language=="Nimble" & control.MCMC$APT & !control.MCMC$parallelize & sum(search()=="package:nimbleAPT")==0) {stop("Since MCMC_language is \"Nimble\" and APT is TRUE, library \"nimbleAPT\" should be loaded which is not the case")}
       if (control$neff.method=="Stan" & nchar(system.file(package='rstan'))==0) {stop("Since parameter neff.method in control argument is \"Stan\", package \"rstan\" should be installed, which is not the case")}
       if (control$convtype=="Gelman_new" & nchar(system.file(package='ggmcmc'))==0) {stop("Since parameter convtype in control argument is \"Stan\", package \"ggmcmc\" should be installed, which is not the case")}
       if (MCMC_language=="Greta"& nchar(system.file(package='greta'))==0) {stop("Since MCMC_language is \"Greta\", package \"greta\" should be installed, which is not the case")}
@@ -1031,9 +1116,11 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
     ## if control.MCMC$saveAllStochNodes and !control.MCMC$includeAllStochNodes & MCMC_language=="Nimble": turn the second to TRUE, otherwise the first will not be implemented.
     if ( control.MCMC$saveAllStochNodes & !control.MCMC$includeAllStochNodes & MCMC_language=="Nimble") {control.MCMC$includeAllStochNodes<-TRUE; print("Component includeAllStochNodes of control.MCMC turned to TRUE because saveAllStochNodes is TRUE") }
+    if ( control.MCMC$monitorAllStochNodes & !control.MCMC$includeAllStochNodes & MCMC_language=="Nimble") {control.MCMC$includeAllStochNodes<-TRUE; print("Component includeAllStochNodes of control.MCMC turned to TRUE because monitorAllStochNodes is TRUE") }
 
     ## if control.MCMC$saveParentNodes and !control.MCMC$includeParentNodes & MCMC_language=="Nimble": turn the second to TRUE, otherwise the first will not be implemented.
     if ( control.MCMC$saveParentNodes & !control.MCMC$includeParentNodes & MCMC_language=="Nimble") {control.MCMC$includeParentNodes<-TRUE; print("Component includeParentNodes of control.MCMC turned to TRUE because saveParentNodes is TRUE") }
+    if ( control.MCMC$monitorParentNodes & !control.MCMC$includeParentNodes & MCMC_language=="Nimble") {control.MCMC$includeParentNodes<-TRUE; print("Component includeParentNodes of control.MCMC turned to TRUE because monitorParentNodes is TRUE") }
 
     if (control.MCMC$WAIC & control.MCMC$resetMV & MCMC_language=="Nimble") {message("Be careful, considering simultaneously resetMV & WAIC in control.MCMC may somewhat lenghten the duration of the MCMC; consider turning resetMV to FALSE") }
 
@@ -1136,7 +1223,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
 
     ## if control$check.convergence.firstrun is NULL: will depend on MCMC_language: if "Greta", will be TRUE because warmup phase separated from the rest; same for "Jags" in which the adaptation phase is also separated from the rest; otherwise will be FALSE.
-    if (is.null(control$check.convergence.firstrun)) { if (MCMC_language=="Nimble") {control$check.convergence.firstrun<-FALSE} else {control$check.convergence.firstrun<-TRUE}}
+    if (is.null(control$check.convergence.firstrun)) { if (MCMC_language!="Greta" & control.MCMC$n.adapt<=0) {control$check.convergence.firstrun<-FALSE} else {control$check.convergence.firstrun<-TRUE}}
 
     ##if control$check.convergence is FALSE, this should be the same for control$recheck.convergence
     if (!control$check.convergence) {control$recheck.convergence<-FALSE}
@@ -1200,6 +1287,8 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     if (control.MCMC$n.adapt==-1 & MCMC_language=="Nimble") {control.MCMC$n.adapt=0}
     if (control.MCMC$n.adapt==-1 & MCMC_language=="Jags") {control.MCMC$n.adapt=1000}
     min.Nvalues<-control$min.Nvalues
+    force.niter.max<-control$force.niter.max
+    force.time.max<-control$force.time.max
     index.conv<-1 ## will contain the index (in rows) of the transient period in number of rows in samplesList[[1]] (as diagnosed by convergence diagnostics)
     thin<-thin.min ## will contain the active thin value
     nburnin<-nburnin.min
@@ -1208,6 +1297,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     Ncycles<-1
     niter.tot<-0
     neffs.reached<-FALSE
+
 
     if (MCMC_language!="Nimble")
     {
@@ -1241,6 +1331,34 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         {message("      Preparing chain ", i, " ...")
 
           Model[[i]] <- nimble::nimbleModel(code = code, name = 'Nimble', constants = constants, data = data, inits=inits[[i]],buildDerivs=control.MCMC$buildDerivs,calculate=FALSE)
+
+          ### by default: taking params for params.save if not provided
+          params<-union(params,union(params.conv,params.save))
+          if (is.null(params.save)) {params.save<-params}
+          if (is.null(params.conv)) {params.conv<-params}
+
+
+          ## changing params in case control.MCMC$includeAllStochNodes
+          if (control.MCMC$includeAllStochNodes) {params<-union(params,Model[[1]]$getNodeNames(stochOnly=TRUE,includeData=FALSE))}
+          ## changing params.save in case control.MCMC$saveAllStochNodes
+          if (control.MCMC$saveAllStochNodes) {params.save<-union(params.save,Model[[1]]$getNodeNames(stochOnly=TRUE,includeData=FALSE))}
+          if (control.MCMC$monitorAllStochNodes) {params.conv<-union(params.conv,Model[[1]]$getNodeNames(stochOnly=TRUE,includeData=FALSE))}
+
+
+          ## changing params in case control.MCMC$includeParentNodes
+          if (control.MCMC$includeParentNodes) { for (j in Model[[1]]$getNodeNames(dataOnly=TRUE)) {params<-union(params,Model[[1]]$getParents(j))}}
+          ## changing params.save in case control.MCMC$saveParentNodes
+          if (control.MCMC$saveParentNodes) {for (j in Model[[1]]$getNodeNames(dataOnly=TRUE)) {params.save<-union(params.save,Model[[1]]$getParents(j))}}
+          if (control.MCMC$monitorParentNodes) {for (j in Model[[1]]$getNodeNames(dataOnly=TRUE)) {params.conv<-union(params.conv,Model[[1]]$getParents(j))}}
+
+          ## making potential changes in params, params.save & params.conv if necessary
+          params<-union(params,union(params.conv,params.save))
+          if (is.null(params)) stop("Program stopped: at least one of the following arguments should be specified: params, params.conv, params.save.")
+          ## replicating params in case there is only one to avoid errors in the code
+          if (length(params)==1) {params<-rep(params,2)}
+          if (length(params.conv)==1) {params.conv<-rep(params.conv,2)}
+          #if (length(params.save)==1) {params.save<-rep(params.save,2)}
+
           CModel[[i]] <- nimble::compileNimble(Model[[i]], showCompilerOutput = control.MCMC$showCompilerOutput)
           if (!control.MCMC$APT)
           {if (i<=length(control.MCMC$WAIC.control))
@@ -1271,36 +1389,20 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
           }
         }
 
-        ## changing params in case control.MCMC$includeAllStochNodes
-        if (control.MCMC$includeAllStochNodes) {params<-union(params,Model[[1]]$getNodeNames(stochOnly=TRUE,includeData=FALSE))}
-        ## changing params.save in case control.MCMC$saveAllStochNodes
-        if (control.MCMC$saveAllStochNodes) {params.save<-union(params.save,Model[[1]]$getNodeNames(stochOnly=TRUE,includeData=FALSE))}
 
-
-        ## changing params in case control.MCMC$includeParentNodes
-        if (control.MCMC$includeParentNodes) { for (j in Model[[1]]$getNodeNames(dataOnly=TRUE)) {params<-union(params,Model[[1]]$getParents(j))}}
-        ## changing params.save in case control.MCMC$saveParentNodes
-        if (control.MCMC$saveParentNodes) {for (j in Model[[1]]$getNodeNames(dataOnly=TRUE)) {params.save<-union(params.save,Model[[1]]$getParents(j))}}
-
-        ## making potential changes in params, params.save & params.conv if necessary
-        params<-union(params,union(params.conv,params.save))
-        if (is.null(params)) stop("Program stopped: at least one of the following arguments should be specified: params, params.conv, params.save.")
-        if (is.null(params.conv)) {params.conv<-params}
-        if (is.null(params.save)) {params.save<-params}
-        ## replicating params in case there is only one to avoid errors in the code
-        if (length(params)==1) {params<-rep(params,2)}
-        if (length(params.conv)==1) {params.conv<-rep(params.conv,2)}
-        #if (length(params.save)==1) {params.save<-rep(params.save,2)}
 
       } else {#then: control.MCMC$parallelize
         message("      Preparing ", Nchains, " chains in parallel...")
-        cl<-parallel::makeCluster(Nchains, timeout = min(5184000,control$time.max/Nchains))
-         parallel::clusterExport(cl, c("code", "inits", "data", "constants", "params",
+        cl<-parallel::makeCluster(Nchains, timeout = ifelse(is.finite(control$time.max), 3*control$time.max+3600,30*24*3600))
+        # next line: cf. https://stackoverflow.com/questions/21560363/seed-and-clusterapply-how-to-select-a-specific-run
+        seeds <- getseeds(Nchains, control$seed); results.temp <- parallel::clusterApply(cl, seeds, worker.seed)
+        parallel::clusterExport(cl, c("code", "inits", "data", "constants", "params","params.conv","params.save",
                                       "niter", "thin", "control","control.MCMC","MCMC_language"),envir=environment())
         for (j in seq_along(cl))
         {
           clusterNumber<-j
           parallel::clusterExport(cl[j], "clusterNumber",envir=environment())
+          #s <- parallel::nextRNGStream(s)
         }
 
         out1 <- parallel::clusterEvalQ(cl, {
@@ -1316,6 +1418,30 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
           names(TempsList) <- paste0("chain", 1:Nchains)
 
           Model[[i]] <- nimble::nimbleModel(code = code, name = 'Nimble', constants = constants, data = data, inits=inits[[clusterNumber]],buildDerivs=control.MCMC$buildDerivs,calculate=FALSE)
+
+          ### by default: taking params for params.save if not provided
+          if (is.null(params.save)) {params.save<-params}
+
+          ## changing params in case control.MCMC$includeAllStochNodes
+          if (control.MCMC$includeAllStochNodes) {params<-union(params,Model[[1]]$getNodeNames(stochOnly=TRUE,includeData=FALSE))}
+          ## changing params.save in case control.MCMC$saveAllStochNodes
+          if (control.MCMC$saveAllStochNodes) {params.save<-union(params.save,Model[[1]]$getNodeNames(stochOnly=TRUE,includeData=FALSE))}
+
+
+          ## changing params in case control.MCMC$includeParentNodes
+          if (control.MCMC$includeParentNodes) { for (j in Model[[1]]$getNodeNames(dataOnly=TRUE)) {params<-union(params,Model[[1]]$getParents(j))}}
+          ## changing params.save in case control.MCMC$saveParentNodes
+          if (control.MCMC$saveParentNodes) {for (j in Model[[1]]$getNodeNames(dataOnly=TRUE)) {params.save<-union(params.save,Model[[1]]$getParents(j))}}
+
+          ## making potential changes in params, params.save & params.conv if necessary
+          params<-union(params,union(params.conv,params.save))
+          if (is.null(params)) stop("Program stopped: at least one of the following arguments should be specified: params, params.conv, params.save.")
+          if (is.null(params.conv)) {params.conv<-params}
+          ## replicating params in case there is only one to avoid errors in the code
+          if (length(params)==1) {params<-rep(params,2)}
+          if (length(params.conv)==1) {params.conv<-rep(params.conv,2)}
+          #if (length(params.save)==1) {params.save<-rep(params.save,2)}
+
           CModel[[i]] <- nimble::compileNimble(Model[[i]], showCompilerOutput = control.MCMC$showCompilerOutput)
           if (!control.MCMC$APT)
           {if (clusterNumber<=length(control.MCMC$WAIC.control))
@@ -1350,29 +1476,14 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
             paramsParentData<-union(paramsParentData,Model[[i]]$getParents(j))
           }
           #return(coda::as.mcmc.list(CModelMCMC[[i]]$mvSamples))
-          return(list(Model[[i]]$getNodeNames(stochOnly=TRUE,includeData=FALSE),paramsParentData))
+          return(list(Model[[i]]$getNodeNames(stochOnly=TRUE,includeData=FALSE),paramsParentData,params,params.conv,params.save))
           gc(verbose = FALSE)
         })
 
-        ## changing params in case control.MCMC$includeAllStochNodes
-        if (control.MCMC$includeAllStochNodes) {params<-union(params,out1[[1]][[1]])}
-        ## changing params.save in case control.MCMC$saveAllStochNodes
-        if (control.MCMC$saveAllStochNodes) {params.save<-union(params.save,out1[[1]][[1]])}
+        params<-out1[[1]][[3]]
+        params.conv<-out1[[1]][[4]]
+        params.save<-out1[[1]][[5]]
 
-        ## changing params in case control.MCMC$includeParentNodes
-        if (control.MCMC$includeParentNodes) { params<-union(params,out1[[1]][[2]])}
-        ## changing params.save in case control.MCMC$saveParentNodes
-        if (control.MCMC$saveParentNodes) {params.save<-union(params.save,out1[[1]][[2]])}
-
-        ## making potential changes in params, params.save & params.conv if necessary
-        params<-union(params,union(params.conv,params.save))
-        if (is.null(params)) stop("Program stopped: at least one of the following arguments should be specified: params, params.conv, params.save.")
-        if (is.null(params.conv)) {params.conv<-params}
-        if (is.null(params.save)) {params.save<-params}
-        ## replicating params in case there is only one to avoid errors in the code
-        if (length(params)==1) {params<-rep(params,2)}
-        if (length(params.conv)==1) {params.conv<-rep(params.conv,2)}
-        #if (length(params.save)==1) {params.save<-rep(params.save,2)}
 
       }
     } ## END: MCMC_language=="Nimble"
@@ -1405,7 +1516,10 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         myModel<-rjags::jags.model(code, data=data, n.chains = Nchains, n.adapt = control.MCMC$n.adapt, inits=inits)
       } else {#then: control.MCMC$parallelize
         message("      Preparing the ", Nchains, " chains in parallel...")
-        cl<-parallel::makeCluster(Nchains, timeout = min(5184000,control$time.max/Nchains))
+        cl<-parallel::makeCluster(Nchains, timeout = ifelse(is.finite(control$time.max), 3*control$time.max+3600,30*24*3600))
+        # next line: cf. https://stackoverflow.com/questions/21560363/seed-and-clusterapply-how-to-select-a-specific-run
+        seeds <- getseeds(Nchains, control$seed); results.temp <- parallel::clusterApply(cl, seeds, worker.seed)
+        #s <- .Random.seed
         if (length(control$seed)>0)
         {if (is.null(inits))
         {inits<-lapply(1:Nchains,function(x){list(".RNG.name" = control.MCMC$RNG.names[(x-1)%%Nchains+1],".RNG.seed" = control$seed+x)})
@@ -1427,6 +1541,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         for (j in seq_along(cl)) {
           clusterNumber<-j
           parallel::clusterExport(cl[j], "clusterNumber",envir=environment())
+          #s <- parallel::nextRNGStream(s)
         }
         out1 <- parallel::clusterEvalQ(cl, {
           eval(control.MCMC$parallelizeInitExpr)
@@ -1447,6 +1562,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
   ## END: current.CPU.time<-system.time({
   time.MCMC.Preparation<-(Sys.time()-time.MCMC.Preparation0)
   units(time.MCMC.Preparation)<-"secs"
+  time.MCMC.Preparation.num<-as.double(time.MCMC.Preparation)
   CPUtime.MCMC.Preparation<-CPUtime.MCMC.Preparation+current.CPU.time[1]+current.CPU.time[2]+ifelse(is.na(current.CPU.time[4]),0, current.CPU.time[4])+ifelse(is.na(current.CPU.time[5]),0, current.CPU.time[5])
   childCPUtime.MCMC.Preparation<-childCPUtime.MCMC.Preparation+current.CPU.time[4]+current.CPU.time[5]
 
@@ -1484,8 +1600,8 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
       } else {#then: control.MCMC$parallelize
         message("      Running adaptation for ", Nchains, " chains in parallel...")
         out1 <- parallel::clusterEvalQ(cl, {
-          if (length(control$seed)>0)
-          {set.seed(control$seed+clusterNumber)}
+          #if (length(control$seed)>0)
+          #{set.seed(control$seed+clusterNumber)}
           Modeltemp <- {if (nimble::is.Cnf(CModelMCMC[[i]]))
             CModelMCMC[[i]]$Robject$model$CobjectInterface
             else CModelMCMC[[i]]$model}
@@ -1515,6 +1631,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
   time.MCMC<-(Sys.time()-time.MCMC0)
   units(time.MCMC)<-"secs"
+  time.MCMC.num<-as.double(time.MCMC)
   CPUtime.MCMC<-CPUtime.MCMC+current.CPU.time[1]+current.CPU.time[2]+ifelse(is.na(current.CPU.time[4]),0, current.CPU.time[4])+ifelse(is.na(current.CPU.time[5]),0, current.CPU.time[5])
   childCPUtime.MCMC<-childCPUtime.MCMC+current.CPU.time[4]+current.CPU.time[5]
 
@@ -1584,8 +1701,8 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         message("      Running ", Nchains, " chains in parallel, with ", niter, " iterations...")
         parallel::clusterExport(cl, c("niter", "thin", "nburnin"),envir=environment())
         out1 <- parallel::clusterEvalQ(cl, {
-          if (length(control$seed)>0)
-          {set.seed(control$seed+clusterNumber+Nchains)}
+          #if (length(control$seed)>0)
+          #{set.seed(control$seed+clusterNumber+Nchains)}
           if (!control.MCMC$APT) {CModelMCMC[[i]]$run(niter, nburnin=nburnin, progressBar =TRUE)
             samplesList <- coda::as.mcmc(as.matrix(CModelMCMC[[i]]$mvSamples))
             return(list(coda::as.mcmc(as.matrix(CModelMCMC[[i]]$mvSamples))))} else {
@@ -1700,6 +1817,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
   }) ## END: current.CPU.time<-system.time({
   time.MCMC<-(Sys.time()-time.MCMC0)
   units(time.MCMC)<-"secs"
+  time.MCMC.num<-as.double(time.MCMC)
   CPUtime.MCMC<-CPUtime.MCMC+current.CPU.time[1]+current.CPU.time[2]+ifelse(is.na(current.CPU.time[4]),0, current.CPU.time[4])+ifelse(is.na(current.CPU.time[5]),0, current.CPU.time[5])
   childCPUtime.MCMC<-childCPUtime.MCMC+current.CPU.time[4]+current.CPU.time[5]
 
@@ -1860,10 +1978,10 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
           if (control$round.thinmult) {thinmult<-round(thinmult)}
           thinmult.proposed<-thinmult
 
-          if(control$check.thinmult)
+          if(control$check.thinmult==3)
           {
             ########################################
-            ### 1.5.1: check.thinmult: Going through thinning levels in decreasing order from thinmult, giving retained value of thinmult
+            ### 1.5.1: check.thinmult==3: Going through thinning levels in decreasing order from thinmult, giving retained value of thinmult
             ########################################
             stop_decrease<-FALSE
             while (thinmult>1&!stop_decrease)
@@ -1872,49 +1990,83 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
               {
                 print(paste("Testing multiplier of thin: ", formatC_adapted(thinmult),":"))
               }
-              diagstemp<-conveff(window(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult)),control$print.diagnostics)
+              diagstemp<-conveff(window.seq(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult)),control$print.diagnostics)
               convergedtemp<-	checking.convergence(diagstemp,control$convtype,control$convtype.Gelman,conv.max,conv.med,conv.mean)
               neffs.reachedtemp<-ifelse(neffs.reached,checking.neffs.reached(diagstemp,neff.min,neff.med,neff.mean),TRUE)
               neffs.conserved<-checking.neffs.conserved(diagstemp,diags,control$max.prop.decr.neff,neff.min,neff.med,neff.mean,neffs.reached)
-              min.Nvalues.OK<-(dim(as.matrix(window(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult))))[1])>min.Nvalues
+              min.Nvalues.OK<-(dim(as.matrix(window.seq(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult))))[1])>min.Nvalues
               stop_decrease<-convergedtemp&neffs.reachedtemp&neffs.conserved&min.Nvalues.OK
-              thinmult<-thinmult-1
+              thinmult.prev<-thinmult
+              thinmult<-ifelse(thinmult>control$decrease.thinmult.threshold, max(floor(control$decrease.thinmult.multiplier*thinmult), control$decrease.thinmult.threshold),thinmult-1)
             }
-            if (stop_decrease) {diags<-diagstemp; thinmult<-thinmult+1}
+            if (stop_decrease) {diags<-diagstemp; thinmult<-thinmult.prev}
 
             if (control$print.thinmult)
             {
               print(paste("Retained multiplier of thin: ", formatC_adapted(thinmult),":"))
               print("###################################################################################")
             }
-          } else { #!control$check.thinmult
-
-            ########################################
-            ### 1.5.2: !check.thinmult: checking min.Nvalues.OK criterion & calculating - approximate if !control$round.thinmult - convergence and neffs.reached with thinmult (if thinmult>1)
-            ########################################
-            if (thinmult>1)
-            { stop_decrease<-FALSE
+          } else { if(control$check.thinmult==2)
+            {
+              ########################################
+              ### 1.5.2: check.thinmult==2: Going through thinning levels in decreasing order from thinmult, giving retained value of thinmult
+              ########################################
+              stop_decrease<-FALSE
               while (thinmult>1&!stop_decrease)
               {
                 if (control$print.thinmult)
                 {
                   print(paste("Testing multiplier of thin: ", formatC_adapted(thinmult),":"))
                 }
-                min.Nvalues.OK<-(dim(as.matrix(window(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult))))[1])>min.Nvalues
-                stop_decrease<-min.Nvalues.OK
-                thinmult<-thinmult-1
+                diagstemp<-conveff(window.seq(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult)),control$print.diagnostics)
+                convergedtemp<-	checking.convergence(diagstemp,control$convtype,control$convtype.Gelman,conv.max,conv.med,conv.mean)
+                neffs.reachedtemp<-ifelse(neffs.reached,checking.neffs.reached(diagstemp,neff.min,neff.med,neff.mean),TRUE)
+                #neffs.conserved<-checking.neffs.conserved(diagstemp,diags,control$max.prop.decr.neff,neff.min,neff.med,neff.mean,neffs.reached)
+                min.Nvalues.OK<-(dim(as.matrix(window.seq(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult))))[1])>min.Nvalues
+                stop_decrease<-convergedtemp&neffs.reachedtemp&min.Nvalues.OK
+                thinmult.prev<-thinmult
+                thinmult<-ifelse(thinmult>control$decrease.thinmult.threshold, max(floor(control$decrease.thinmult.multiplier*thinmult), control$decrease.thinmult.threshold),thinmult-1)
               }
-              if (stop_decrease) {thinmult<-thinmult+1
-                diags<-conveff(window(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult)),control$print.diagnostics)
-                converged<-	checking.convergence(diags,control$convtype,control$convtype.Gelman,conv.max,conv.med,conv.mean)
-                neffs.reached<-checking.neffs.reached(diags,neff.min,neff.med,neff.mean)}
+              if (stop_decrease) {diags<-diagstemp; thinmult<-thinmult.prev}
+
+              if (control$print.thinmult)
+              {
+                print(paste("Retained multiplier of thin: ", formatC_adapted(thinmult),":"))
+                print("###################################################################################")
+              }
+          } else { #check.thinmult==1
+
+            ########################################
+            ### 1.5.3: check.thinmult==1: checking min.Nvalues.OK criterion & calculating - approximate if !control$round.thinmult - convergence and neffs.reached with thinmult (if thinmult>1)
+            ########################################
+            if (thinmult>1)
+            { stop_decrease<-FALSE
+            while (thinmult>1&!stop_decrease)
+            {
+              if (control$print.thinmult)
+              {
+                print(paste("Testing multiplier of thin: ", formatC_adapted(thinmult),":"))
+              }
+              min.Nvalues.OK<-(dim(as.matrix(window.seq(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult))))[1])>min.Nvalues
+              stop_decrease<-min.Nvalues.OK
+              thinmult.prev<-thinmult
+              thinmult<-ifelse(thinmult>control$decrease.thinmult.threshold, max(floor(control$decrease.thinmult.multiplier*thinmult), control$decrease.thinmult.threshold),thinmult-1)
             }
+            if (stop_decrease) {thinmult<-thinmult.prev}
             if (control$print.thinmult)
             {
               print(paste("Retained multiplier of thin: ", formatC_adapted(thinmult),":"))
               print("###################################################################################")
             }
-          } #END: if(control$check.thinmult)
+            if (stop_decrease) {
+              diags<-conveff(window.seq(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult)),control$print.diagnostics)
+              converged<-	checking.convergence(diags,control$convtype,control$convtype.Gelman,conv.max,conv.med,conv.mean)
+              neffs.reached<-checking.neffs.reached(diags,neff.min,neff.med,neff.mean)
+              }
+            }
+
+          }
+        } #END: if(control$check.thinmult)
         }
       }
     }
@@ -1939,7 +2091,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
   #default value for previously.converged0
   previously.converged0<-previously.converged
 
-  while((!converged |!neffs.reached)&niter>=thin)
+  while((!converged |!neffs.reached|force.niter.max|force.time.max)&niter>=thin)
   {
     current.CPU.time<-system.time({
       ##store previously.converged at the beginning of the last cycle
@@ -1948,6 +2100,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
       ########################################
       ### 2.1: specifying the new thinning level and the new number of iterations
       ########################################
+      thin.init<-thin
       thin.theoretical<-thin*thinmult.proposed
       thin<-update.thin(thin,thinmult,thin.max,control$round.thinmult)
 
@@ -1969,10 +2122,10 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
       if (! converged) {
         if (!previously.converged)
         {scaleconvs<-scale.available.convs(diags,control$convtype,control$convtype.Gelman,conv.max,conv.med,conv.mean)
-        niter<-ceiling(min(c(max(round(niter.tot/Ncycles)*1/(1+exp(log(scaleconvs-1)-control$ip.nc))+niter.tot*1/(1+exp(-(log(scaleconvs-1)-control$ip.nc))),nburnin+ceiling(ifelse(control$conv.thorough.check,length(control$props.conv)+1,2)*min.Nvalues/Nchains)*thin+10-niter.tot),niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))
+        niter<-ceiling(min(c(max(round(niter.tot/Ncycles)*1/(1+exp(log(scaleconvs-1)-control$ip.nc))+niter.tot*1/(1+exp(-(log(scaleconvs-1)-control$ip.nc))),nburnin+ceiling(ifelse(control$conv.thorough.check,length(control$props.conv)+1,2)*min.Nvalues/Nchains)*thin+10-niter.tot),ifelse(control$time.max.turns.off.niter.max,Inf,niter.max)-niter.tot,(control$time.max-duration)*max(0.5,time.MCMC.num/(duration-time.MCMC.Preparation.num))*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/time.MCMC.num)))
         } else {
           #niter<-ceiling(min(c(niter.previous,niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))
-          niter<-ceiling(min(c(max(round(niter.tot/Ncycles),nburnin+ceiling(ifelse(control$conv.thorough.check,length(control$props.conv)+1,2)*min.Nvalues/Nchains)*thin+10- niter.tot),niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))
+          niter<-ceiling(min(c(max(round(niter.tot/Ncycles),nburnin+ceiling(ifelse(control$conv.thorough.check,length(control$props.conv)+1,2)*min.Nvalues/Nchains)*thin+10- niter.tot),ifelse(control$time.max.turns.off.niter.max,Inf,niter.max)-niter.tot,(control$time.max-duration)*max(0.5,time.MCMC.num/(duration-time.MCMC.Preparation.num))*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/time.MCMC.num)))
         }
 
         if (Ncycles>1|control$check.convergence.firstrun) {
@@ -1981,19 +2134,19 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         }
       }
 
-      ## if converged but not enough values to estimate thinmult
+      ## if converged & !neffs.reached but not enough values to estimate thinmult
       ### then add few iterations to just exceed min.Nvalues while fulfilling nitex.max & control$time.max conditions
-      if ( converged & ((length(index.conv:size.samplesList)*Nchains.updated)<=min.Nvalues))
+      if ( converged & !neffs.reached & ((length(index.conv:size.samplesList)*Nchains.updated)<=min.Nvalues))
       {
-        niter<-ceiling(min(c(max((min.Nvalues-(length(index.conv:size.samplesList)*Nchains.updated)/Nchains.updated)+10,nburnin+ceiling(ifelse(control$conv.thorough.check,length(control$props.conv)+1,2)*min.Nvalues/Nchains)*thin+10- niter.tot),niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))
+        niter<-ceiling(min(c(max((min.Nvalues-(length(index.conv:size.samplesList)*Nchains.updated)/Nchains.updated)+10,nburnin+ceiling(ifelse(control$conv.thorough.check,length(control$props.conv)+1,2)*min.Nvalues/Nchains)*thin+10- niter.tot),ifelse(control$time.max.turns.off.niter.max,Inf,niter.max)-niter.tot,(control$time.max-duration)*max(0.5,time.MCMC.num/(duration-time.MCMC.Preparation.num))*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/time.MCMC.num)))
         if (Ncycles>1|control$check.convergence.firstrun) {
           print("Case of niter update: Convergence but not enough values after convergence to safely update thin")
           print("###################################################################################")
         }
       }
 
-      ## if converged and enough values to estimate thinmult
-      if ( converged & ((length(index.conv:size.samplesList)*Nchains.updated)>min.Nvalues))
+      ## if converged & !neffs.reached and enough values to estimate thinmult
+      if ( converged & !neffs.reached & ((length(index.conv:size.samplesList)*Nchains.updated)>min.Nvalues))
       {
 
 
@@ -2001,7 +2154,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         {
           ## if (Ncycles+1)/control$Ncycles.target<0.95
           ## then do not plan to reach the number of effective values in the next Cycle while fulfilling nitex.max & control$time.max conditions
-          niter<-ceiling((Ncycles+1)/control$Ncycles.target*min(c(max(ceiling((control$safemultiplier.Nvals*neff.max-available.neffs)/Nchains.updated)*thin.theoretical,nburnin+ceiling(ifelse(control$conv.thorough.check,length(control$props.conv)+1,2)*min.Nvalues/Nchains)*thin+10- niter.tot),niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))
+          niter<-ceiling((Ncycles+1)/control$Ncycles.target*min(c(max(ceiling((control$safemultiplier.Nvals*neff.max-available.neffs)/Nchains.updated)*thin.theoretical,nburnin+ceiling(ifelse(control$conv.thorough.check,length(control$props.conv)+1,2)*min.Nvalues/Nchains)*thin+10- niter.tot),ifelse(control$time.max.turns.off.niter.max,Inf,niter.max)-niter.tot,(control$time.max-duration)*max(0.5,time.MCMC.num/(duration-time.MCMC.Preparation.num))*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/time.MCMC.num)))
           if (Ncycles>1|control$check.convergence.firstrun) {
             print("Case of niter update: Convergence but not in the last planned cycle")
             print("###################################################################################")
@@ -2010,17 +2163,28 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         else {
           ## if (Ncycles+1)/control$Ncycles.target>=0.95
           ## then plan to reach the number of effective values in the next Cycle while fulfilling nitex.max & control$time.max conditions
-          niter<-min(c(max(ceiling((control$safemultiplier.Nvals*neff.max-available.neffs)/Nchains.updated)*thin.theoretical,nburnin+ceiling(ifelse(control$conv.thorough.check,length(control$props.conv)+1,2)*min.Nvalues/Nchains)*thin+10- niter.tot),niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration))
+          niter<-min(c(max(ceiling((control$safemultiplier.Nvals*neff.max-available.neffs)/Nchains.updated)*thin.theoretical,nburnin+ceiling(ifelse(control$conv.thorough.check,length(control$props.conv)+1,2)*min.Nvalues/Nchains)*thin+10- niter.tot),ifelse(control$time.max.turns.off.niter.max,Inf,niter.max)-niter.tot,(control$time.max-duration)*max(0.5,time.MCMC.num/(duration-time.MCMC.Preparation.num))*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/time.MCMC.num))
           if (Ncycles>1|control$check.convergence.firstrun) {
             print("Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle")
             print("###################################################################################")
           }
         }
       }
+
+      ## if converged and neffs.reached & force.niter.max:
+      if ( converged & neffs.reached & (force.niter.max|force.time.max))
+      {
+        niter<-ceiling(min(c(niter.max-niter.tot,(control$time.max-duration)*max(0.5,time.MCMC.num/(duration-time.MCMC.Preparation.num))*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/time.MCMC.num)))
+        if (Ncycles>1|control$check.convergence.firstrun) {
+          print("Case of niter update: Convergence and enough values after convergence; since force.niter.max, performing iterations to reach niter.max")
+          print("###################################################################################")
+        }
+      }
+
       ## corrections of values of niter in case these values are inadequate
       if (niter<=thin) {niter<--1}
       #if (niter==Inf){niter<-niter.tot}
-      if (niter==Inf){ceiling(min(c(niter.tot,niter.max-niter.tot,(control$time.max-duration)*0.95*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/duration)))}
+      if (niter==Inf){ceiling(min(c(niter.tot,ifelse(control$time.max.turns.off.niter.max,Inf,niter.max)-niter.tot,(control$time.max-duration)*max(0.5,time.MCMC.num/(duration-time.MCMC.Preparation.num))*(niter.tot+ifelse(MCMC_language=="Jags"|MCMC_language=="Nimble",control.MCMC$n.adapt,0))/time.MCMC.num)))}
       if (niter<=0)
       {
         if (Ncycles>1|control$check.convergence.firstrun) {
@@ -2028,6 +2192,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
           print("###################################################################################");
         }
         niter<--1
+        thin<-thin.init
       }
 
 
@@ -2072,7 +2237,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
             for (i in 1:Nchains)
             {message("      Running chain ", i, ", with ", niter, " iterations...")
               if (length(control$seed)>0)
-              {set.seed(control$seed+i+2*Nchains)}
+              {set.seed(control$seed+i+Ncycles*Nchains)}
               if (!control.MCMC$APT) {CModelMCMC[[i]]$run(niter, thin=thin, progressBar =TRUE,reset=FALSE,resetMV=as.logical(max(control.MCMC$resetMV,resetMV.temporary)))
                 #if (! control.MCMC$resetMV) {samplesList[[i]] <- as.matrix(CModelMCMC[[i]]$mvSamples)}
                 } else {
@@ -2103,10 +2268,10 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
           } else {#then: control.MCMC$parallelize
             message("      Running ", Nchains, " chains in parallel, with ", niter, " iterations...")
 
-            parallel::clusterExport(cl, c("niter", "thin", "nburnin","resetMV.temporary","mvSamples.previous"),envir=environment())
+            parallel::clusterExport(cl, c("Ncycles","niter", "thin", "nburnin","resetMV.temporary","mvSamples.previous"),envir=environment())
             out1 <- parallel::clusterEvalQ(cl, {
-              if (length(control$seed)>0)
-              {set.seed(control$seed+clusterNumber+2*Nchains)}
+              #if (length(control$seed)>0)
+              #{set.seed(control$seed+clusterNumber+Ncycles*Nchains)}
               if (!control.MCMC$APT) {CModelMCMC[[i]]$run(niter, thin = thin, progressBar =TRUE,reset = FALSE,resetMV=as.logical(max(control.MCMC$resetMV,resetMV.temporary)))
                  samplesList<- coda::as.mcmc(rbind(as.matrix(samplesList),if(as.logical(max(control.MCMC$resetMV,resetMV.temporary))){as.matrix(CModelMCMC[[i]]$mvSamples)}else{as.matrix(CModelMCMC[[i]]$mvSamples)[-(1:mvSamples.previous),]}))
 
@@ -2180,6 +2345,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
       time.MCMC.duration<-(Sys.time()-time.MCMC0)
       units(time.MCMC.duration)<-"secs"
       time.MCMC<-time.MCMC+time.MCMC.duration
+      time.MCMC.num<-as.double(time.MCMC)
       CPUtime.MCMC<-CPUtime.MCMC+current.CPU.time[1]+current.CPU.time[2]+ifelse(is.na(current.CPU.time[4]),0, current.CPU.time[4])+ifelse(is.na(current.CPU.time[5]),0, current.CPU.time[5])
       childCPUtime.MCMC<-childCPUtime.MCMC+current.CPU.time[4]+current.CPU.time[5]
 
@@ -2198,23 +2364,16 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
         index.conv0<-1
 
-        ### reversed vector of - decreasing- indices to save
-        temp<-length(numIter.samplesList[index.conv:size.samplesList])-round(cumsum(rev(numIter.samplesList[index.conv:size.samplesList]))/thin)+1
-        ### same but not rounded
-        tempunr<-length(numIter.samplesList[index.conv:size.samplesList])-(cumsum(rev(numIter.samplesList[index.conv:size.samplesList]))/thin)+1
-        ## unique values of temp; will be changed afterwards
-        indices.samplesList<-unique(temp)
-        ## same, will not be changed afterwards
-        indices.samplesList0<- indices.samplesList
-
-        for (i in indices.samplesList)
+        ### we will start from the following number of iterations and go backwards: motivation: to be sure to have all the thin values in case conbtrol$roundthinmult; this is not sure in the reverse order
+        numIter.sum<-sum(numIter.samplesList)
+        numIter.sum.conv<-sum(numIter.samplesList[1:index.conv])
+        iters.ref<-rev(seq(from=numIter.sum,to=numIter.sum.conv,by=-thin))
+        numIter.cumsum<-cumsum(numIter.samplesList)
+        indices.samplesList<-iters.ref
+        for (i in 1:length(iters.ref))
         {
-          tempbis<-which(temp==i)
-          ## will give the corresponding order on the scale of indices of [index.conv:size.samplesList]
-          indices.samplesList[indices.samplesList0==i]<-length(numIter.samplesList[index.conv:size.samplesList])-tempbis[which.min(abs(tempunr[tempbis]-i))[1]]+1
+          indices.samplesList[i]<-which.min(abs(numIter.cumsum-iters.ref[i]))
         }
-        ## transforming indices on the scale of indices of numIter.samplesList
-        indices.samplesList<-(index.conv:size.samplesList)[sort(indices.samplesList)]
 
         ## tranferring the part of samplesList corresponding to indices.samplesList to samplesList.temp
         samplesList.temp<-samplesList
@@ -2233,7 +2392,6 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         else
         {samplesList.temp<-samplesList.temp}
         size.samplesList.temp<-dim(as.matrix(samplesList.temp[[1]]))[1]
-
 
         ########################################
         ###2.4- diagnostics based on new model
@@ -2338,10 +2496,10 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
               if (control$round.thinmult) {thinmult<-round(thinmult)}
               thinmult.proposed<-thinmult
 
-              if(control$check.thinmult)
+              if(control$check.thinmult==3)
               {
                 ########################################
-                ### 2.4.2.1: check.thinmult: Going through thinning levels in decreasing order from thinmult, giving retained value of thinmult
+                ### 2.4.2.1: check.thinmult==3: Going through thinning levels in decreasing order from thinmult, giving retained value of thinmult
                 ########################################
                 stop_decrease<-FALSE
                 while (thinmult>1&!stop_decrease)
@@ -2350,15 +2508,16 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                   {
                     print(paste("Testing multiplier of thin: ", formatC_adapted(thinmult),":"))
                   }
-                  diagstemp<-conveff(window(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult)),control$print.diagnostics)
+                  diagstemp<-conveff(window.seq(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp,thin=round(thinmult)),control$print.diagnostics)
                   convergedtemp<-	checking.convergence(diagstemp,control$convtype,control$convtype.Gelman,conv.max,conv.med,conv.mean)
                   neffs.reachedtemp<-ifelse(neffs.reached,checking.neffs.reached(diagstemp,neff.min,neff.med,neff.mean),TRUE)
                   neffs.conserved<-checking.neffs.conserved(diagstemp,diags,control$max.prop.decr.neff,neff.min,neff.med,neff.mean,neffs.reached)
-                  min.Nvalues.OK<-(dim(as.matrix(window(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult))))[1])>min.Nvalues
+                  min.Nvalues.OK<-(dim(as.matrix(window.seq(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp,thin=round(thinmult))))[1])>min.Nvalues
                   stop_decrease<-convergedtemp&neffs.reachedtemp&neffs.conserved&min.Nvalues.OK
-                  thinmult<-thinmult-1
+                  thinmult.prev<-thinmult
+                  thinmult<-ifelse(thinmult>control$decrease.thinmult.threshold, max(floor(control$decrease.thinmult.multiplier*thinmult), control$decrease.thinmult.threshold),thinmult-1)
                 }
-                if (stop_decrease) {diags<-diagstemp; thinmult<-thinmult+1}
+                if (stop_decrease) {diags<-diagstemp; thinmult<-thinmult.prev}
 
                 if (control$print.thinmult)
                 {
@@ -2366,32 +2525,66 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                   print("###################################################################################")
                 }
 
-              } else { #!control$check.thinmult
-
+              } else { if(control$check.thinmult==2)
+              {
                 ########################################
-                ### 2.4.2.2: !check.thinmult: checking condition min.Nvalues condition & calculating - approximate if !control$round.thinmult - convergence and neffs.reached with thinmult (if thinmult>1)
+                ### 2.4.2.2: check.thinmult==2: Going through thinning levels in decreasing order from thinmult, giving retained value of thinmult
                 ########################################
-                  stop_decrease<-FALSE
-                  while (thinmult>1&!stop_decrease)
+                stop_decrease<-FALSE
+                while (thinmult>1&!stop_decrease)
+                {
+                  if (control$print.thinmult)
                   {
-                    if (control$print.thinmult)
-                    {
-                      print(paste("Testing multiplier of thin: ", formatC_adapted(thinmult),":"))
-                    }
-                    min.Nvalues.OK<-(dim(as.matrix(window(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult))))[1])>min.Nvalues
-                    stop_decrease<-min.Nvalues.OK
-                    thinmult<-thinmult-1
+                    print(paste("Testing multiplier of thin: ", formatC_adapted(thinmult),":"))
                   }
-                  if (stop_decrease) {thinmult<-thinmult+1
-                  diags<-conveff(window(samplesList[,indices.conv],start=index.conv,end=size.samplesList,thin=round(thinmult)),control$print.diagnostics)
-                  converged<-	checking.convergence(diags,control$convtype,control$convtype.Gelman,conv.max,conv.med,conv.mean)
-                  neffs.reached<-checking.neffs.reached(diags,neff.min,neff.med,neff.mean)}
+                  diagstemp<-conveff(window.seq(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp,thin=round(thinmult)),control$print.diagnostics)
+                  convergedtemp<-	checking.convergence(diagstemp,control$convtype,control$convtype.Gelman,conv.max,conv.med,conv.mean)
+                  neffs.reachedtemp<-ifelse(neffs.reached,checking.neffs.reached(diagstemp,neff.min,neff.med,neff.mean),TRUE)
+                  #neffs.conserved<-checking.neffs.conserved(diagstemp,diags,control$max.prop.decr.neff,neff.min,neff.med,neff.mean,neffs.reached)
+                  min.Nvalues.OK<-(dim(as.matrix(window.seq(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp,thin=round(thinmult))))[1])>min.Nvalues
+                  stop_decrease<-convergedtemp&neffs.reachedtemp&min.Nvalues.OK
+                  thinmult.prev<-thinmult
+                  thinmult<-ifelse(thinmult>control$decrease.thinmult.threshold, max(floor(control$decrease.thinmult.multiplier*thinmult), control$decrease.thinmult.threshold),thinmult-1)
+                }
+                if (stop_decrease) {diags<-diagstemp; thinmult<-thinmult.prev}
+
                 if (control$print.thinmult)
                 {
                   print(paste("Retained multiplier of thin: ", formatC_adapted(thinmult),":"))
                   print("###################################################################################")
                 }
-              } #END: if(control$check.thinmult)
+
+              } else { #control$check.thinmult==1
+
+                ########################################
+                ### 2.4.2.3: check.thinmult==1: checking condition min.Nvalues condition & calculating - approximate if !control$round.thinmult - convergence and neffs.reached with thinmult (if thinmult>1)
+                ########################################
+                stop_decrease<-FALSE
+                while (thinmult>1&!stop_decrease)
+                {
+                  if (control$print.thinmult)
+                  {
+                    print(paste("Testing multiplier of thin: ", formatC_adapted(thinmult),":"))
+                  }
+                  min.Nvalues.OK<-(dim(as.matrix(window.seq(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp,thin=round(thinmult))))[1])>min.Nvalues
+                  stop_decrease<-min.Nvalues.OK
+                  thinmult.prev<-thinmult
+                  thinmult<-ifelse(thinmult>control$decrease.thinmult.threshold, max(floor(control$decrease.thinmult.multiplier*thinmult), control$decrease.thinmult.threshold),thinmult-1)
+                }
+                if (stop_decrease) {thinmult<-thinmult.prev}
+                if (control$print.thinmult)
+                {
+                  print(paste("Retained multiplier of thin: ", formatC_adapted(thinmult),":"))
+                  print("###################################################################################")
+                }
+                if (stop_decrease) {
+                  diags<-conveff(window.seq(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp,thin=round(thinmult)),control$print.diagnostics)
+                  converged<-	checking.convergence(diags,control$convtype,control$convtype.Gelman,conv.max,conv.med,conv.mean)
+                  neffs.reached<-checking.neffs.reached(diags,neff.min,neff.med,neff.mean)
+                  }
+
+              }
+              } #END: if(control$check.thinmult==...)
             }
           }
 
@@ -2402,13 +2595,18 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
       CPUtime.btadjust<-CPUtime.btadjust+current.CPU.time[1]+current.CPU.time[2]+ifelse(is.na(current.CPU.time[4]),0, current.CPU.time[4])+ifelse(is.na(current.CPU.time[5]),0, current.CPU.time[5])
       childCPUtime.btadjust<-childCPUtime.btadjust+current.CPU.time[4]+current.CPU.time[5]
     } ## END: if (niter>=thin)
-  }	##END of while((!converged |!neffs.reached)&niter>=thin)
+  }	##END of while((!converged |!neffs.reached|force.niter.max)&niter>=thin)
 
 
-  if(control$check.thinmult)
-  {
+  print("###################################################################################")
+  print("Main MCMC sampling finished.")
+  print("###################################################################################")
+
+
+
     ########################################
-    ###2.5- Testing size reduction due to much higher Nvalues than neffs & potentially reshaping samplesList accordingly in case converged: otherwise: much too big object
+    ### 2.5- Testing size reduction due to much higher Nvalues than neffs & potentially reshaping samplesList accordingly in case converged: otherwise: much too big object
+    ### only done here for converged situations as for non convergence cases this is treated directly at the end
     ########################################
     current.CPU.time<-system.time({
 
@@ -2427,81 +2625,82 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         if (thinmult<control$min.thinmult){thinmult<-1}
         if (control$round.thinmult) {thinmult<-round(thinmult)}
 
-        ########################################
-        ### 2.5.2: Going through thinning levels in decreasing order from thinmult, giving retained value of thinmult
-        ########################################
-        stop_decrease<-FALSE
-        while (thinmult>1&!stop_decrease)
-        {if (control$print.thinmult)
-        {
-          print(paste("Testing final multiplier of thin: ", formatC_adapted(thinmult),":"))
-        }
-          diagstemp<-conveff(window(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp,thin=round(thinmult)),control$print.diagnostics)
-          convergedtemp<-	checking.convergence(diagstemp,control$convtype,control$convtype.Gelman,conv.max,conv.med,conv.mean)
-          neffs.reachedtemp<-ifelse(neffs.reached,checking.neffs.reached(diagstemp,neff.min,neff.med,neff.mean),TRUE)
-          neffs.conserved<-checking.neffs.conserved(diagstemp,diags,control$max.prop.decr.neff,neff.min,neff.med,neff.mean,neffs.reached)
-          min.Nvalues.OK<-(dim(as.matrix(window(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp,thin=round(thinmult))))[1])>min.Nvalues
-          stop_decrease<-convergedtemp&neffs.reachedtemp&neffs.conserved&min.Nvalues.OK
-          thinmult<-thinmult-1
-        }
-        if (stop_decrease) {thinmult<-thinmult+1}
+          ########################################
+          ### 2.5.2: Going through thinning levels in decreasing order from thinmult, giving retained value of thinmult
+          ### we here take the same conditions as above in case control$check.thinmult==3 (2.4.2.1) but with the addition that if !neffs.reached, in minValues, we add 2*min(c(neff.min,neff.med,neff.mean),na.rm=TRUE) as in case of non-convergence
+          ########################################
+          stop_decrease<-FALSE
+          refNvalues<-dim(as.matrix(window(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp)))[1]
+          while (thinmult>1&!stop_decrease)
+          {if (control$print.thinmult)
+          {
+            print(paste("Testing final multiplier of thin: ", formatC_adapted(thinmult),":"))
+          }
+            diagstemp<-conveff(window.seq(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp,thin=round(thinmult)),control$print.diagnostics)
+            convergedtemp<-	checking.convergence(diagstemp,control$convtype,control$convtype.Gelman,conv.max,conv.med,conv.mean)
+            neffs.reachedtemp<-ifelse(neffs.reached,checking.neffs.reached(diagstemp,neff.min,neff.med,neff.mean),TRUE)
+            neffs.conserved<-checking.neffs.conserved(diagstemp,diags,control$max.prop.decr.neff,neff.min,neff.med,neff.mean,neffs.reached)
+            min.Nvalues.OK<-(dim(as.matrix(window.seq(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp,thin=round(thinmult))))[1])>=max(min.Nvalues,ifelse(neffs.reached,0,min(refNvalues,2*min(c(neff.min,neff.med,neff.mean),na.rm=TRUE))))
+            stop_decrease<-convergedtemp&neffs.reachedtemp&ifelse(control$check.thinmult==3,neffs.conserved,TRUE)&min.Nvalues.OK
+            thinmult.prev<-thinmult
+            thinmult<-ifelse(thinmult>control$decrease.thinmult.threshold, max(floor(control$decrease.thinmult.multiplier*thinmult), control$decrease.thinmult.threshold),thinmult-1)
+          }
+          if (stop_decrease) {thinmult<-thinmult.prev}
 
-        if (control$print.thinmult)
-        {
-          print(paste("Retained final multiplier of thin: ", formatC_adapted(thinmult)))
-          print("###################################################################################")
-        }
+          if (control$print.thinmult)
+          {
+            print(paste("Retained final multiplier of thin: ", formatC_adapted(thinmult)))
+            print("###################################################################################")
+          }
 
-        thin<-update.thin(thin,thinmult,thin.max,control$round.thinmult)
+          thin<-update.thin(thin,thinmult,thin.max,control$round.thinmult)
+
 
         ########################################
         ###  2.5.3- Reshaping samplesList so that the spacing between values is roughly of thin: result in samplesList.temp
         ########################################
 
-        index.conv0<-1
+          index.conv0<-1
 
-        ### reversed vector of - decreasing- indices to save
-        temp<-length(numIter.samplesList[index.conv:size.samplesList])-round(cumsum(rev(numIter.samplesList[index.conv:size.samplesList]))/thin)+1
-        ### same but not rounded
-        tempunr<-length(numIter.samplesList[index.conv:size.samplesList])-(cumsum(rev(numIter.samplesList[index.conv:size.samplesList]))/thin)+1
-        ## unique values of temp; will be changed afterwards
-        indices.samplesList<-unique(temp)
-        ## same, will not be changed afterwards
-        indices.samplesList0<- indices.samplesList
+          ### we will start from the following number of iterations and go backwards: motivation: to be sure to have all the thin values in case conbtrol$roundthinmult; this is not sure in the reverse order
+          numIter.sum<-sum(numIter.samplesList)
+          numIter.sum.conv<-sum(numIter.samplesList[1:index.conv])
+          iters.ref<-rev(seq(from=numIter.sum,to=numIter.sum.conv,by=-thin))
+          numIter.cumsum<-cumsum(numIter.samplesList)
+          indices.samplesList<-iters.ref
+          for (i in 1:length(iters.ref))
+          {
+            indices.samplesList[i]<-which.min(abs(numIter.cumsum-iters.ref[i]))
+          }
 
-        for (i in indices.samplesList)
-        {
-          tempbis<-which(temp==i)
-          ## will give the corresponding order on the scale of indices of [index.conv:size.samplesList]
-          indices.samplesList[indices.samplesList0==i]<-length(numIter.samplesList[index.conv:size.samplesList])-tempbis[which.min(abs(tempunr[tempbis]-i))[1]]+1
-        }
-        ## transforming indices on the scale of indices of numIter.samplesList
-        indices.samplesList<-(index.conv:size.samplesList)[sort(indices.samplesList)]
+          ## tranferring the part of samplesList corresponding to indices.samplesList to samplesList.temp
+          samplesList.temp<-samplesList
+          ## associated index.conv is 1 by definition
+          index.conv.temp<-1
+          index.conv0.temp<-index.conv.temp
+          for (i in 1:Nchains)
+          {
+            samplesList.temp[[i]]<-samplesList[[i]][indices.samplesList,]
+          }
 
-        ## tranferring the part of samplesList corresponding to indices.samplesList to samplesList.temp
-        samplesList.temp<-samplesList
-        ## associated index.conv is 1 by definition
-        index.conv.temp<-1
-        index.conv0.temp<-index.conv.temp
-        for (i in 1:Nchains)
-        {
-          samplesList.temp[[i]]<-samplesList[[i]][indices.samplesList,]
-        }
+          samplesList.temp <- coda::as.mcmc.list(lapply(samplesList.temp, coda::as.mcmc))
 
-        samplesList.temp <- coda::as.mcmc.list(lapply(samplesList.temp, coda::as.mcmc))
+          if (length(chains.to.remove)>0)
+          {samplesList.temp<-coda::as.mcmc.list(samplesList.temp[-chains.to.remove])}
+          else
+          {samplesList.temp<-samplesList.temp}
+          size.samplesList.temp<-dim(as.matrix(samplesList.temp[[1]]))[1]
 
-        if (length(chains.to.remove)>0)
-        {samplesList.temp<-coda::as.mcmc.list(samplesList.temp[-chains.to.remove])}
-        else
-        {samplesList.temp<-samplesList.temp}
-        size.samplesList.temp<-dim(as.matrix(samplesList.temp[[1]]))[1]
+          index.conv.local<-indices.samplesList[index.conv.temp]
 
 
       } #END if (converged) (2.5)
     }) ## END: current.CPU.time<-system.time({
     CPUtime.btadjust<-CPUtime.btadjust+current.CPU.time[1]+current.CPU.time[2]+ifelse(is.na(current.CPU.time[4]),0, current.CPU.time[4])+ifelse(is.na(current.CPU.time[5]),0, current.CPU.time[5])
     childCPUtime.btadjust<-childCPUtime.btadjust+current.CPU.time[4]+current.CPU.time[5]
-  }
+
+
+
 
   ########################################
   ###2.6- In case Nimble and control.MCMC$WAIC, online calculus of WAIC
@@ -2512,6 +2711,11 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     time.MCMC0<-Sys.time()
     WAIC.results<-NULL
     if (control.MCMC$WAIC & MCMC_language=="Nimble" & converged) {
+
+      print("###################################################################################")
+      print("Performing extra MCMC sampling for WAIC calculation")
+      print("###################################################################################")
+
 
       if (control$thinmult.in.resetMV.temporary)
       {
@@ -2524,7 +2728,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
       {WAIC.results<-lapply (1:length(control.MCMC$WAIC.control),function(i)
       {
         if (length(control$seed)>0)
-        {set.seed(control$seed+i+3*Nchains)}
+        {set.seed(control$seed+i+(Ncycles+1)*Nchains)}
         #change 1: added resetMV in the following:
         if (!control.MCMC$APT)
           {
@@ -2551,10 +2755,10 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         })
       } else {
         message("      Running ", Nchains, " chains in parallel for WAIC calculation...")
-        parallel::clusterExport(cl, c("niter", "thin", "control","control.MCMC","resetMV.temporary","mvSamples.previous"),envir=environment())
+        parallel::clusterExport(cl, c("Ncycles","niter", "thin", "control","control.MCMC","resetMV.temporary","mvSamples.previous"),envir=environment())
         WAIC.results <- parallel::clusterEvalQ(cl, {
-          if (length(control$seed)>0)
-          {set.seed(control$seed+clusterNumber+3*Nchains)}
+          #if (length(control$seed)>0)
+          #{set.seed(control$seed+clusterNumber+(Ncycles+1)*Nchains)}
           #change 1: added resetMV in the following:
           if (clusterNumber<=length(control.MCMC$WAIC.control))
           {
@@ -2602,6 +2806,12 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
   ########################################
   current.CPU.time<-system.time({
     time.MCMC0<-Sys.time()
+    if (length(control.MCMC$extraCalculations)!=0)
+    {
+      print("###################################################################################")
+      print("Performing extra calculations")
+      print("###################################################################################")
+    }
     extraResults<-try(eval(control.MCMC$extraCalculations))
     time.MCMC.after<-(Sys.time()-time.MCMC0)
     units(time.MCMC.after)<-"secs"
@@ -2668,6 +2878,8 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
   childCPUtime.btadjust<-childCPUtime.btadjust+current.CPU.time[4]+current.CPU.time[5]
   total.duration<-Sys.time()-time.start
   units(total.duration)<-"secs"
+
+  final.diags<-if (converged){index.conv.local<-indices.samplesList[index.conv.temp];conveff_final(window(samplesList.temp,start=index.conv.temp,end=size.samplesList.temp),indices.conv,control$conveff.final.allparams,control$print.diagnostics)} else {index.conv.local<-indices.samplesList[index.conv.temp];conveff_final(window(samplesList.temp),indices.conv,control$conveff.final.allparams,control$print.diagnostics)}
   original.atrributes<-list(call.params=list(summarized.data= {if(!is.null(data)&!control$save.data) {summarize.data(data)} else {NULL} },
                                              summarized.consts= {if(!is.null(constants)&!control$save.data) {summarize.data(constants)} else {NULL} },
                                              data= {if(!is.null(data)&control$save.data) {data} else {if(!is.null(data)) {"data only summarized; see summarized.data component"} else {NULL} }},
@@ -2681,7 +2893,8 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                                              neff.min=neff.min,neff.med=neff.med,neff.mean=neff.mean,
                                              conv.max=conv.max,conv.med=conv.med,conv.mean=conv.mean,
                                              control=control,control.MCMC=control.MCMC),
-                            final.params=list(converged=converged,neffs.reached=neffs.reached,final.Nchains=Nchains.updated,burnin=nburnin.min0+ifelse(index.conv==1&converged,0,sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)])),thin=thin,niter.tot=niter.tot,
+                            final.params=list(converged=converged,neffs.reached=neffs.reached,final.Nchains=Nchains.updated,burnin=nburnin.min0+ifelse((index.conv==1&converged)|!converged,0,sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)])),thin=thin,niter.tot=niter.tot,
+                                              Nvalues=unname(final.diags$params["Nvalues"]),neff.min=unname(final.diags$neff_synth["min"]),neff.median=unname(final.diags$neff_synth["median"]),
                                               WAIC=WAIC.results,
                                               extraResults=extraResults,
                                               Temps=TempsList,
@@ -2704,20 +2917,22 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                                               childCPUduration.btadjust=unname(childCPUtime.btadjust),
                                               time_end=Sys.time()),
                             #NB: burnin and niter.tot are in MCMC iteration units for one chain; thin is in MCMC iteration units
-                            final.diags=if (converged){index.conv.local<-index.conv.temp;conveff_final(window(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp))} else {index.conv.local<-index.conv.temp;conveff_final(window(samplesList.temp[,indices.conv]))},
+                            final.diags=final.diags,
                             sessionInfo=sessionInfo(),
                             # removed because a priori useless outside runMCMC_btadjust							numIter.samplesList=numIter.samplesList,
                             warnings=c(NULL))
   result<- coda::as.mcmc.list(lapply(result,function(x){y<-x; attributes(y)$mcpar<-c(original.atrributes$final.params$burnin,original.atrributes$final.params$burnin+original.atrributes$final.params$thin*(attributes(y)$dim[1]-1), original.atrributes$final.params$thin);y}))
   attributes(result)<-original.atrributes
+  result<- coda::as.mcmc.list(result)
 
-  ## if the MCMC has not converged: risk that there are much too many values. We
+  ## if the MCMC has not converged: risk that there are much too many values.
   if (!converged)
   {current.result.size<-length(result)*dim(result[[1]])[1]
   thin.end<-floor(current.result.size/(2*min(c(neff.min,neff.med,neff.mean),na.rm=TRUE)))
   if (thin.end>1)
   {thin<-thin*thin.end
-  result<-window(result,thin=thin.end)
+  result<-window.seq(result,thin=thin.end)
+  final.diags<-conveff_final(coda::as.mcmc.list(lapply(result,function(x){coda::as.mcmc(as.matrix(x))})),indices.conv,control$conveff.final.allparams,control$print.diagnostics)
   new.atrributes<-list(call.params=list(summarized.data= {if(!is.null(data)&!control$save.data) {summarize.data(data)} else {NULL} },
                                         summarized.consts= {if(!is.null(constants)&!control$save.data) {summarize.data(constants)} else {NULL} },
                                         data= {if(!is.null(data)&control$save.data) {data} else {if(!is.null(data)) {"data only summarized; see summarized.data component"} else {NULL} }},
@@ -2731,7 +2946,8 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                                         neff.min=neff.min,neff.med=neff.med,neff.mean=neff.mean,
                                         conv.max=conv.max,conv.med=conv.med,conv.mean=conv.mean,
                                         control=control,control.MCMC=control.MCMC),
-                       final.params=list(converged=converged,neffs.reached=neffs.reached,final.Nchains=Nchains.updated,burnin=nburnin.min0+ifelse(index.conv==1&converged,0,sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)])),thin=thin,niter.tot=niter.tot,
+                       final.params=list(converged=converged,neffs.reached=neffs.reached,final.Nchains=Nchains.updated,burnin=nburnin.min0+ifelse((index.conv==1&converged)|!converged,0,sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)])),thin=thin,niter.tot=niter.tot,
+                                         Nvalues=unname(final.diags$params["Nvalues"]),neff.min=unname(final.diags$neff_synth["min"]),neff.median=unname(final.diags$neff_synth["median"]),
                                          WAIC=WAIC.results,
                                          extraResults=extraResults,
                                          Temps=TempsList,
@@ -2754,7 +2970,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                                          childCPUduration.btadjust=unname(childCPUtime.btadjust),
                                          time_end=Sys.time()),
                        #NB: burnin and niter.tot are in MCMC iteration units for one chain; thin is in MCMC iteration units
-                       final.diags=conveff_final(coda::as.mcmc.list(lapply(result,function(x){coda::as.mcmc(as.matrix(x))}))),
+                       final.diags=final.diags,
                        sessionInfo=sessionInfo(),
                        # removed because a priori useless outside runMCMC_btadjust							numIter.samplesList=numIter.samplesList,
                        warnings=c(NULL),

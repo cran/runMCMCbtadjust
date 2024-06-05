@@ -3,13 +3,11 @@
 We now turn to analyzing the same data with the same statistical model using `JAGS` with `runMCMC_btadjust()`. We rely on the data simulated above. In `JAGS`, we now put all the data in the same list:
 
 ```{r Jags Data}
-
 ModelData.Jags <-list(mass = y1000, nobs = length(y1000))
-
 
 ```
 
-We then propose the use of `JAGS` with a specification of the model from within R - which we find more convenient. We therefore write the model within `R` as a character chain:
+We then propose the use of `JAGS` with a specification of the model from within `R` - which we find more convenient. We therefore write the `JAGS` model within `R` as a character chain:
 
 ```{r Jags ModelCode}
 
@@ -34,7 +32,8 @@ modeltotransfer<-"model {
 
 The other objects useful or required for running `runMCMC_btadjust` with `JAGS` are similar to those required with `NIMBLE` (`Inits`, `Nchains`, `params`) and are not repeated here.
 
-We then launch `runMCMC_btadjust()` with `MCMC_language="Jags"`, specifying arguments `code` and `data` which are required in this case:
+We then launch `runMCMC_btadjust()` with `MCMC_language="Jags"`, specifying arguments `code` and `data` which are required in this case. Note that if we had written the `JAGS` code in a text file named `"ModelJags.txt"`, we would just have replaced in the command above `code=modeltotransfer` by `code="ModelJags.txt"`.
+
 
 ```{r Jags First model, cache=FALSE}
 
@@ -48,7 +47,7 @@ out.mcmc.Jags<-runMCMC_btadjust(code=modeltotransfer,  data = ModelData.Jags, MC
 
 ```
 
-Note that if we had written the `JAGS` code in a text file named `"ModelJags.txt"`, we would just have replaced in the command above `code=modeltotransfer` by `code="ModelJags.txt"`.
+Here is a summary of the parameter estimates:
 
 ```{r Jags First model inv, echo=FALSE}
 
@@ -103,5 +102,5 @@ knitr::kable(compar_MCMC_times,col.names=c("Nimble.default","Jags"),align="r",ca
 
 `r if (as.double(compar_MCMC_times[1,2])>=as.double(compar_MCMC_times[1,1])) {paste0("Indeed, \"JAGS\" with just the first iterations produced a higher number of effective values - actually bigger than the targeted \"neff.min\"  - than \"NIMBLE\".")}`
 `r if (as.double(compar_MCMC_times[2,1])<as.double(compar_MCMC_times[2,2])) { "Yet, the MCMC time per effective value remained lower with \"NIMBLE\" than with \"JAGS\" with this model (cf. table above)."}`
-`r if (as.double(compar_MCMC_times[2,1])>as.double(compar_MCMC_times[2,2])) { "In line with this, the MCMC time per effective value remained lower with \"JAGS\" than with \"NIMBLE\" with this model (cf. table above)."}`
+`r if (as.double(compar_MCMC_times[2,1])>as.double(compar_MCMC_times[2,2])) { "In line with this, the MCMC time per effective value was actually lower with \"JAGS\" than with \"NIMBLE\" with this model (cf. table above)."}`
 

@@ -1,3 +1,42 @@
+# runMCMCbtadjust 1.1.1
+
+Major revisions:
+- Added 1000 to control$time.max/Nchains in timeout argument to avoid "error reading from connection"; then replaced timeout = min(5184000,control$time.max/Nchains+1000) by timeout = ifelse(is.finite(control$time.max), 3*control$time.max+3600,30*24*3600) to have a maximum length of 30 days in case time.max is unspecified and allowing extra-time for WAIC & extra-calculations otherwise.
+- Modified multiplier of Nchains in set.seed in sections 2 and greater - using Ncycles to avoid repeated same values
+- Changed formula for niter related to duration/time to promote reproducibility in case of time.max not reached
+- Changed the way control$check.thinmult behaves by adding a third level and changing the default - to conserve neffs.reached & convergence if they occurred prior to change
+- Changed the beginning of sections 2.3 & 2.5.3 - "Reshaping samplesList" sections -  to better control samples and iterations being controlled from the end of the Markov chains
+- Added code for controlling sees in case of parallelization (control.MCMC$parallelize), for reproducibility issues: seeds <- getseeds(Nchains, control$seed); results.temp <- parallel::clusterApply(cl, seeds, worker.seed), with specifications of functions getseeds and worker.seed.
+- Added function window.seq to allow coherence with modifications in 2.3 and 2.5.3 and used it instead of window (in case thin was specified)
+- Added arguments decrease.thinmult.multiplier and decrease.thinmult.threshold to control and changed the formula for thinmult decrease when adapting it from thinmult<-thinmult-1 to thinmult<-ifelse(thinmult>control$decrease.thinmult.threshold, max(floor(control$decrease.thinmult.multiplier*thinmult), control$decrease.thinmult.threshold),thinmult-1)
+- Added time.MCMC.Preparation.num and shifted time-dependent formulas for niter from (control$time.max-duration)*0.95 to (control$time.max-duration)*max(0.5,time.MCMC.num/(duration-time.MCMC.Preparation.num)), so that control$time.max is the targeted maximum time
+- Added two vignettes to give expanations on two specific points: changing samplers with Nimble and doing extra-calaulcations with Nimble
+
+Minor revisions:
+- Put back the call to library instead of requireNamespace in parallelizeInitExpr to avoid some problems.
+- Added a stop of the program if parallelize and library parallel is not loaded. Updated help accordingly.
+- Changed error message if APT and Nimble and not parallelized, and nimbleAPT is not loaded
+- Revised burnin in the output - in case of non-convergence - and revised thinning of result in case of non-convergence - to ensure proper resizing
+- Revised 2.5 section and especially 2.5.2 to reduce number of samples in case of convergence - done also if not check.thinmult; associated changes in checking.neffs.conserved and in section 2.1 for thin in case niter<0
+- Removed a print command in 2.5.2 that was there just for diagnosing
+- Corrected calculate.thinmult.target function to have a maximum value that thinmult cannot overcome so that there are at least 10 values left in each Markov Chain.
+- Shifted index.conv.local<-index.conv.temp to index.conv.local<-indices.samplesList[index.conv.temp] before conveff_final calls due to burnin problems with conveff_final
+- Slight changes in the first Vignette
+- Slight changes in the text of the help
+- Changed default and help for component check.convergence.firstrun of control
+- Changed the error message in case names of control or control.MCMC do not match those in the function, to be more informative
+- Changed final thin multiplier section to make check.thinmult more active: added if else in: stop_decrease<-convergedtemp&neffs.reachedtemp&ifelse(control$check.thinmult==3,neffs.conserved,TRUE)&min.Nvalues.OK
+- Changed examples in functions runMCMC_btadjust and findMCMC_strong_corrs: not running them - due to duration constraints on CRAN - and removing condition
+- Replaced: nu.burn=nburnin.min+sum(numIter.samplesList[1:(index.conv.local-1)]) by: nu.burn= nburnin.min0+sum(numIter.samplesList[1:(index.conv.local-1)]) for nu.burn to be better estimated with Jags.
+- Added printing messages at the end of MCMC sampling and at the beginning of WAIC sampling; Added printing of extra-calculation phase - otherwise silent…
+- Added components Nvalues, neff.min & neff.median in final.params component of the attributes of the output
+- Introduced arguments monitorParentNodes and monitorAllStochNodes in control.MCMC and slight changes in params, params.conv & params.save
+- Added argument conveff.final.allparams to control with a default to TRUE and changed the conveff_final function and its calls accordingly. Behavior in previous versions corresponded to conveff.final.allparams=FALSE in case of MCMC convergence.
+- Added arguments force.niter.max and force.time.max (respectively time.max.turns.off.niter.max) to control with a default to FALSE to be able to force the MCMC to go to niter.max (for force.niter.max) and control$time.max (for force.time.max) (provided control$time.max constraints and niter.max contrainsts are met) (resp. to disable niter.max - except if in force.niter.max or force.time.max phase - if control$time.max is specified).
+- In section 2 - for in thinmult adaptations - turned samplesList to samplesList.temp & adapted related indices for diagstemp and minNvalues.OK calculations. 
+
+---
+
 # runMCMCbtadjust 1.1.0
 
 - Replaced functions list.as.matrixbisdim1 and list.as.array and replaced them by as.matrix and as.array (from coda package)

@@ -40,7 +40,7 @@ We then write our Bayesian code within R with the `nimbleCode` function in the `
 
 ```
 
-The model is a simple linear - and Gaussian - model with only an intercept - actually the same model -for the likelihood section -  as the probabilistic model used to generate the data.
+The model is a simple linear - and Gaussian - model with only an intercept -, actually the same model - for the likelihood section -  as the probabilistic model used to generate the data.
 
 Our - optional - next step is to specify starting values for model's parameters. This is done by first writing a function that is repetitively called for each chain. We - also optionally - indicate the names of parameters to be saved and diagnosed in a vector called `params`:
 
@@ -75,7 +75,7 @@ out.mcmc.Coda.Geweke<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, 
 
 ```
 
-The above information printed during running `runMCMC_btadjust()` is somewhat elusive. It is possible to get more information printed with components `identifier.to.print`, `print.diagnostics`, `print.thinmult` and `innerprint` of the argument `control` of `runMCMC_btadjust()` or the component `showCompilerOutput` of `control.MCMC` - this last one being active only with `MCMC_language=="Nimble"`. See the help file of `runMCMC_btadjust()` for more information. By default, only `print.thinmult` is `TRUE` and therefore activated. We hereafter just show the activation of component `print.diagnostics` to show the reader that it can produce useful information to better realize what is being done in terms of control of convergence and number of effective values.
+The above information printed during running `runMCMC_btadjust()` is somewhat elusive. It is possible to get more information printed with components `identifier.to.print`, `print.diagnostics`, `print.thinmult` and `innerprint` of the argument `control` of `runMCMC_btadjust()` or the component `showCompilerOutput` of `control.MCMC` - this last one being active only with `MCMC_language=="Nimble"`. See the help file of `runMCMC_btadjust()` for more information. By default, only `print.thinmult` is `TRUE` and therefore activated. We hereafter just show the activation of the `print.diagnostics` component to show the reader that it can produce useful information to better realize what is being done in terms of control of convergence and number of effective values.
 
 ```{r Nimble first run with print.diagnostics, cache=FALSE}
 out.mcmc.Coda.Geweke.with.print.diagnostics<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = ModelData, MCMC_language="Nimble",
@@ -90,7 +90,7 @@ out.mcmc.Coda.Geweke.with.print.diagnostics<-runMCMC_btadjust(code=ModelCode, co
 
 We advise the reader to use the `print.diagnostics` functionality but do not in the following to keep the length of the document to a minimum.
 
-Before turning to other models, let us depict the nature of the result of `runMCMC_btadjust()` function. The length of the output `r length(out.mcmc.Coda.Geweke)` is always equal to the number of Markov Chains - argument `Nchains`. Its class is `r class(out.mcmc.Coda.Geweke)` - a type of object classical for MCMC outputs and defined in the `coda` package. Each component of this list contains the successive retained values for each saved parameter as well as attributes that give information on the MCMC they come from - see the beginning of the first component below:
+Before turning to other model fits, let us depict the nature of the result of `runMCMC_btadjust()` function. The length of the output `r length(out.mcmc.Coda.Geweke)` is always equal to the number of Markov Chains - argument `Nchains`. Its class is `r class(out.mcmc.Coda.Geweke)` - a type of object classical for MCMC outputs and defined in the `coda` package. Each component of this list contains the successive retained values for each saved parameter as well as attributes that give information on the MCMC they come from - see the beginning of the first component below:
 
 ```{r nature of the output, cache=FALSE}
 
@@ -103,7 +103,7 @@ head(out.mcmc.Coda.Geweke[[1]])
 
 ```
 
-The output however has extra information in its `attributes`: indeed, `attributes` has `r length(attributes(out.mcmc.Coda.Geweke))` components, whose name are: `r names(attributes(out.mcmc.Coda.Geweke))`: in addition to containing the class of the object - here "mcmc.list", these attributes include information on the R session in which the function was executed - component sessionInfo, the final diagnostics of the model - component final.diags -, the parameters used in the call of the `runMCMC_btadjust()` function - component call.params - and finally the final "parameters" of the function - component final.params. In case `MCMC_language` is not "Greta", the call.params component contains either the entire data and /or the constants or a summary of these (to keep the output to a controlled object size) - this choice is controlled by the component `save.data` of parameter `control`. The component final.params has a series of heterogeneous parameters including whether the model has converged, has reached its targets in terms of numbers of effective values..., as well as information in terms of duration of the different sections of the analysis - which we will use in the sequence of this document. See the help file for more information as well as the below printing. Finally, the sessionInfo component has many interesting info relative to the context in which the function `runMCMC_btadjust()` was executed (including platform, version of R, versions of packages...). 
+The output - i.e. the whole list - however has extra information in its `attributes`: indeed, `attributes` has `r length(attributes(out.mcmc.Coda.Geweke))` components, whose name are: `r names(attributes(out.mcmc.Coda.Geweke))`: in addition to containing the class of the object - here "mcmc.list" -, these attributes include information on the R session in which the function was executed - component `sessionInfo` -, the final diagnostics of the model - component `final.diags` -, the parameters used in the call of the `runMCMC_btadjust()` function - component `call.params` - and finally the final "parameters" of the function - component `final.params`. In case `MCMC_language` is not "Greta", the `call.params` component contains either the entire data and /or the constants or a summary of these (to keep the output to a controlled object size) - this choice is controlled by the component `save.data` of parameter `control`. The component `final.params` has a series of heterogeneous parameters including whether the model has converged, has reached its targets in terms of numbers of effective values..., as well as information in terms of duration of the different sections of the analysis - which we will use in the sequence of this document. See the help file for more information as well as the below printing. The `final.diags` component contains the information on the convergence and number of effective values of the parameters. Finally, the `sessionInfo` component has many interesting info relative to the context in which the function `runMCMC_btadjust()` was executed (including platform, version of R, versions of packages...).  
 
 ```{r attributes of the output, cache=FALSE}
 
@@ -113,12 +113,15 @@ names(attributes(out.mcmc.Coda.Geweke)$package.versions)
 
 attributes(out.mcmc.Coda.Geweke)$final.params
 
+attributes(out.mcmc.Coda.Geweke)$final.diags
+
 attributes(out.mcmc.Coda.Geweke)$sessionInfo
+
 
 ```
 
 
-We then run the MCMC with `Nchains` MCMC chains, the - default - Gelman-Rubin diagnostic of convergence and the -default- `rstan` method for calculating the number of effective values:
+We then run the MCMC with `r `Nchains` MCMC chains, the - default - Gelman-Rubin diagnostic of convergence and the -default- `rstan` method for calculating the number of effective values:
 
 
 ```{r Nimble second run, cache=FALSE}
@@ -146,7 +149,7 @@ knitr::kable(compar_MCMC_times[1:(dim(compar_MCMC_times)[1]-1),],col.names=c("Ni
 ```
 
 
-`r if(as.double(compar_MCMC_times["duration",1])<(as.double(compar_MCMC_times["duration",2])/1.5)){ paste0("We acknowledge that the Coda.Geweke algorithm takes much less time (rows named \"duration\" and \"CPUduration\" in the previous table) than the classical setting to prepare data (rows named \"duration.MCMC.preparation\" and \"CPUduration.MCMC.preparation\")- as NIMBLE takes quite a lot of time to prepare each MCMC chain - and we have ", Nchains," chains to prepare in the default setting compared to 1 with Geweke.")}`
+`r if(as.double(compar_MCMC_times["duration",1])<(as.double(compar_MCMC_times["duration",2])/1.5)){ paste0("We acknowledge that the Coda.Geweke algorithm takes much less time (rows named \"duration\" and \"CPUduration\" in the previous table) than the classical setting to prepare data (rows named \"duration.MCMC.preparation\" and \"CPUduration.MCMC.preparation\") - as NIMBLE takes quite a lot of time to prepare each MCMC chain - and we have ", Nchains," chains to prepare in the default setting compared to 1 with Geweke.")}`
  
 `r if(as.double(compar_MCMC_times["duration.MCMC.transient",1])>as.double(compar_MCMC_times["duration.MCMC.transient",2])*1.5)
 	{paste0("We also notice that the Coda.Geweke algorithm uses more time (\"duration.MCMC.transient\" and \"CPUduration.MCMC.transient\")",
@@ -154,7 +157,7 @@ knitr::kable(compar_MCMC_times[1:(dim(compar_MCMC_times)[1]-1),],col.names=c("Ni
 		ifelse((as.double(compar_MCMC_times["duration.MCMC.asymptotic",2])<as.double(compar_MCMC_times["duration.MCMC.asymptotic",1])*1.5)|(as.double(compar_MCMC_times["thin",2])<as.double(compar_MCMC_times["thin",1])*1.5),NULL, "while the default setting takes more time for the asymptotic phase (\"duration.MCMC.asymptotic\" and \"CPUduration.MCMC.asymptotic\"), linked to a greater thinning parameter (\"thin\")")
 		,". This transient part should be linked to the different behaviors between Geweke and Gelman-Rubin convergence diagnostics",
 		ifelse(as.double(compar_MCMC_times["thin",2])<as.double(compar_MCMC_times["thin",1])*1.5,NULL,", while the differences in thinning parameters might be linked to the different methods in calculating the number of effective parameters"),
-		". We therefore run a third MCMC on one chain with Geweke diagnostic but the default, rstan method for number of effective values.")}`
+		". We therefore run a third MCMC on one chain with Geweke diagnostic but the default, rstan method for number of effective values.")} else {paste0("We also wished to run a third MCMC on one chain with Geweke diagnostic but the default, rstan method for number of effective values, assumed to be more consertaive - i.e. to estimate lower numbers of effective values.")}`
 	
 
 

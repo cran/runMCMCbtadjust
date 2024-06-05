@@ -1,8 +1,0 @@
-
-## Parallelization
-
-The function `runMCMC_btadjust()` now allows automatic parallelization of different Markov chains of the MCMC parts of the algorithm which can be of interest when we have several Markov chains. We initially planned to run the parallelized versions of both the `NIMBLE` and `JAGS` models with `r Nchains` chains - recall that `greta` already uses parallelization. Yet, due to intrincacies of the CRAN process, the vignette did not work on CRAN whereas it did on my computer. I can therefore not put it here. The only difference with the preceding calls are the addition of `control.MCMC=list(parallelize=TRUE)` - or of `parallelize=TRUE` in `control.MCMC` if already present.
-
-
-
-
