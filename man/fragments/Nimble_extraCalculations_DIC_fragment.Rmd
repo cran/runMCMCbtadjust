@@ -1,9 +1,9 @@
 
 # Mode-type DIC
 
-We will here calculate the mode-type Deviance Information Criterion (DIC) proposed by @Celeux2006651 to circumvent problems met with the classical version of the DIC (@Spiegelhalter2002583). This is done to show how to perform this extra calculation, not because we suspect a problem with classical DIC in this very simple model.
+We will here calculate the mode-type Deviance Information Criterion (DIC) proposed by @Celeux2006651 to circumvent problems met with the classical version of the DIC (@Spiegelhalter2002583). This is done to show how to perform this extra calculation, not because we suspect a problem with classical DIC in the very simple model we will use.
 
-We first provide an example of extra calculations on a model without using parallelization on a specific model. We start by presenting the simulated data as well as the associated model and then, come to coding extra-calculations in this model.
+We first provide an example of extra calculations on a specific model without using parallelization. We start by presenting the simulated data as well as the associated model and then, come to coding extra-calculations in this model.
 
 ## Mode-type DIC without parallelization
 
@@ -86,7 +86,7 @@ out.mcmc<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = Model
 
 ```
 
-This is now time to write the program for DIC calculations within this setting thanks to the `extraCalculations` component of `control.MCMC` in `runMCMCbtadjust`.
+This is now time to write the program for DIC calculations within this setting thanks to the `extraCalculations` component of `control.MCMC` in `runMCMC_btadjust`.
 
 Given that we want to do calculations of DIC - which is based on calculating the log probabilities of data - we will first **need to ensure that all the statistical parameters necessary to calculate these probabilities are included in `samplesList.temp` by `runMCMC_btadjust`**: this is done by turning the component **`includeParentNodes`** of `control.MCMC` to TRUE. Note that this will not change the saved parameters nor the monitored parameters. If you wish to also save all these parameters - for example for calculations outside of `runMCMC_btadjust` , you should use component `saveParentNodes` of `control.MCMC`. If you wish to also monitor all these parameters, you should use component `monitorParentNodes` of `control.MCMC`.
 
@@ -126,11 +126,13 @@ calculations.for.modalDIC<-expression(
 
 
     
-    ## fourth, running through all the samples in a lapply function:
+    ## fourth, running through all the samples in a sapply function to obtain the logLikelihoods corresponding to each set of parameters:
     logLiks.EC<-sapply(1:(dim(samples.List.matrix.EC)[1]),function(toto) 
       {
       ClogProbCalcPrepared.EC$logProbCalcPrepared.EC$run(samples.List.matrix.EC[toto,])
       })
+    ## fifth: calculating DICs and estimation of numbers of parameters:
+    
     #mode type DIC; cf. Celeux et al. 2006 Bayesian analysis
     DIC.mode.EC<--4*mean(logLiks.EC)+2*max(logLiks.EC)
     p.DIC.mode.EC<--2*mean(logLiks.EC)+2*max(logLiks.EC)

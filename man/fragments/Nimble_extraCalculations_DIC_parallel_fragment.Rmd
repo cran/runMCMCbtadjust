@@ -72,7 +72,7 @@ calculations.for.modalDIC.parallel<-expression(
       Model1.EC<-Model[[1]]
       names.samples.EC<-dimnames(samples.to.treat.EC)[[2]]
     
-        ## third preparing the names of variables to calculate on:
+      ## third preparing the names of variables to calculate on:
       varNames.EC<-CModel[[1]]$getVarNames()
       DatavarNames.EC<-names(data)
       notDatavarNames.EC<-setdiff(varNames.EC,DatavarNames.EC)
@@ -91,7 +91,7 @@ calculations.for.modalDIC.parallel<-expression(
     ClogProbCalcPrepared.EC <- compileNimble(Model1.EC, logProbCalcPrepared.EC)
 
 
-      
+      ## fifth, running through all the samples in a sapply function to obtain the logLikelihoods corresponding to each set of parameters:
           logLiks<-sapply(1:(dim(samples.to.treat.EC)[1]),function(toto) 
       {
       ClogProbCalcPrepared.EC$logProbCalcPrepared.EC$run(samples.to.treat.EC[toto,])
@@ -102,6 +102,9 @@ calculations.for.modalDIC.parallel<-expression(
         })
     
     logLiks.EC<-unlist(out1)
+    
+    
+    ## sixth: calculating DICs and estimation of numbers of parameters - outside of clusters for the first type of DIC and having to go back yo one cluster - here taken as the first - to do the calculation of logLikelihood on the mean of parameters as required by the classical formula of DIC:
     
     #mode type DIC; cf. Celeux et al. 2006 Bayesian analysis
     DIC.mode.EC<--4*mean(logLiks.EC)+2*max(logLiks.EC)
@@ -141,6 +144,6 @@ Results of both methods are also aligned with the number of parameters we know i
 `r if(attributes(out.mcmc.X)$final.params$extra$DIC.mode<attributes(out.mcmc)$final.params$extra$DIC.mode){ paste0("The results would indicate that models with the covariate x would be very slightly better than the ones without it (DIC difference of ", format(attributes(out.mcmc.X)$final.params$extra$DIC.mode-attributes(out.mcmc)$final.params$extra$DIC.mode,digits=3),") - yet if we retain the principle of only keeping more complicated models with DIC values reduced by at least 2 units from more simple models, this more complicated model would not be retained.")}`
 `r if(attributes(out.mcmc.X)$final.params$extra$DIC.mode>=attributes(out.mcmc)$final.params$extra$DIC.mode){ paste0("These last DIC values are greater than the ones for the first, simple model, indicating a preference for the simpler model which is logical since it actually has a likelihood that is the same as the probabilistic model that generated the data.")}`
 
-Mode-based DIC can be expected to provide better results that classical DIC in situations where the use of the mean of statistical parameters in classical DIC yields strange estimations of the number of parameters - esp. negative values. This can be due to the fact that distributions of parameters are not symmetric and /or multivariate distribution of parameters which is strongly non-linear. In this context, mode-based DIC makes more sense - I indeed used it in @Zilliox2014105 for this reason. Yet mode-based DIC will be dependent on how close the best of the sampled parameters is close to the mode. It could therefore make sense to calculate mode-based DIC with different numbers of samples and check the dependency of the DIC value from this number of parameters. A DIC value that stabilizes with the greatest number of parameters would indicate that we have a sufficiently high number of samples in our MCMC.
+Mode-based DIC can be expected to provide better results than classical DIC in situations where the use of the mean of statistical parameters in classical DIC yields strange estimations of the number of parameters - esp. negative values. This can be due to the fact that distributions of parameters are not symmetric and /or multivariate distribution of parameters which is strongly non-linear. In this context, mode-based DIC makes more sense - I indeed used it in @Zilliox2014105 for this reason. Yet mode-based DIC will be dependent on how close the best of the sampled parameters is close to the mode. It could therefore make sense to calculate mode-based DIC with different numbers of samples and check the dependency of the DIC value from this number of parameters. A DIC value that stabilizes with the greatest number of parameters would indicate that we have a sufficiently high number of samples in our MCMC.
 
 This first example showed the reader how to perform extra calculations with `extraCalculations` component of `control.MCMC` in `runMCMCbtadjust` , both in an unaparallelized and a parallelized setting - here to calculate mode-based DIC and classical DIC. The code is rather generic in the sense that it should apply to any model without changing the code. A key point for numerical efficiency is to go through a `nimbleFunction` for what concerns calculations on the `NIMBLE` model.

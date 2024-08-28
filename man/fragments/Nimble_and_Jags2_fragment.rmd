@@ -1,5 +1,5 @@
 
-## Parallelization
+# Parallelization
 
 The function `runMCMC_btadjust()` now allows automatic parallelization of different Markov chains of the MCMC parts of the algorithm which can be of interest when we have several Markov chains. When the user wishes to use parallelization, the only difference with the preceding calls are the addition of `control.MCMC=list(parallelize=TRUE)` - or of `parallelize=TRUE` in `control.MCMC` if already present. Here are examples below, with 2 chains only (a condition required by CRAN to accept parallelization in vignettes).
 

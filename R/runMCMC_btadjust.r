@@ -46,10 +46,10 @@
 #'   \item \code{convtype.alpha}: real value between 0 and 1: significance level used in case \code{convtype=="Gelman"} and \code{convtype.Gelman==2}, or \code{convtype=="Heidelberger"}
 #'   \item \code{props.conv}: numeric vector: quantiles of number of iterations removed to recheck convergence and number of effective values (if not converged before or \code{conv.thorough.check} is TRUE). Values should be between 0 and 1.
 #'   \item \code{ip.nc}: real value: inflexion point for log(scaleconvs-1); if (very) negative will tend to double the number of iterations in case of non convergence (i.e. add niter iterations) ; if (very) positive will tend to add niter/Ncycles iterations. Default to 0.
-#'   \item \code{conv.thorough.check}: logical value: whether one goes through all the \code{props.conv} proportions to find the best one in terms first of convergence (just in terms of respecting the criterion) and then of neffs (in terms of absolute value of number of effective values) (if TRUE) or stops at the first \code{props.conv} corresponding to convergence or does not change if there is no convergence (if FALSE, the default).
+#'   \item \code{conv.thorough.check}: logical value: whether one goes through all the \code{props.conv} proportions to find the best one in terms first of convergence (just in terms of respecting the criterion) and then of neffs (if TRUE) or stops at the first \code{props.conv} corresponding to convergence or does not change if there is no convergence (if FALSE, the default).
 #'   \item \code{neff.method}: character value: method used to calculate the effective sample sizes. Current choice between "Stan" (the default) and "Coda". If "Stan", uses the function \code{monitor} in package \code{rstan}. If "Coda", uses the function \code{effectiveSize} in package \code{coda}.
 #'   \item \code{Ncycles.target}: integer value: targeted number of MCMC runs. Default to 2.
-#'   \item \code{min.Nvalues}: integer value or expression giving an integer value: minimum number of values to diagnose convergence or level of autocorrelation.
+#'   \item \code{min.Nvalues}: integer value or expression giving an integer value or NULL: minimum number of values to diagnose convergence or level of autocorrelation. Default to NULL in which case is will be given the value neff.max calculated within the program.
 #'   \item \code{round.thinmult}: logical value: should the thin multiplier be rounded to the nearest integer so that past values are precisely positioned on the modified iteration sequence? Default to TRUE. Value of FALSE may not be rigorous or may not converge well.
 #'   \item \code{thinmult.in.resetMV.temporary}: logical value: should the thin multiplier be taken into account in resetting parameter collection in case MCMC_language is "Nimble". Important mainly if control.MCMC$WAIC is TRUE. If TRUE, resetting will be more frequent, and WAIC calculation will be longer and more rigorous. Default to TRUE.
 #'   \item \code{check.thinmult}: integer value between 1, 2 and 3: how should we check thinmult value after thinmult calculation? If 3, it is tested whether thinmult meets specific criteria -relative to convergence reaching (i.e. if no convergence, no change), number of effective value reaching conservation, minimum number of output values - min.Nvalues- and proportional reduction of number of effective values - and if not decreased values are tested with the same criteria. If 2, the same checkings are done except the one on proportional reduction of effective values. If 1, only the min.Nvalues criterion is taken into account. Default to 2. A value of 3 should produce shorter MCMCs, more values in the output, with more autocorrelation, than a value of 1.
@@ -67,7 +67,7 @@
 #'   \item \code{print.diagnostics}: logical value: should diagnostics be printed each time they are calculated? Default to FALSE.
 #'   \item \code{print.thinmult}: logical value: should the raw multiplier of thin be printed each time it is calculated? Default to TRUE.
 #'   \item \code{innerprint}: logical value: should printings be done inside the function \code{monitor} of \code{rstan} in case \code{neff.method=="Stan"}? Default to FALSE.
-#'   \item \code{remove.fixedchains}: logical value: should we remove Markov chains that do not vary (i.e. whose all parameters have zero variances)? Default to TRUE.
+#'   \item \code{remove.fixedchains}: logical value: should we remove Markov chains that do not vary during the first cycle (i.e. whose all parameters have zero variances)? Default to TRUE. If so, those chains are removed from the diagnostics, from the output values and associated chains are no longer updated if MCMC_language=="Nimble".
 #'   \item \code{check.installation}: logical value: should the function check installation of packages and programs? Default to TRUE.
 #'   \item \code{save.data}: logical value: should the program save the entire data in the call.params section of the attributes? Default to FALSE, in which case only a summary of data is saved.
 #'   \item \code{conveff.final.allparams}: logical value: should the final convergence/number of effective values calculations in final.diags be done on all parameters? Default to TRUE.
@@ -86,8 +86,8 @@
 #' \item \code{parallelizeInitExpr} (only for \code{MCMC_language=="Jags"} and \code{MCMC_language=="Nimble"}): expression to add in each cluster created by parallelization. Default to \code{expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL})}.
 #' \item \code{useConjugacy} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether Nimble should search for conjugate priors in the model. Default to FALSE. If TRUE, can render model configuration shorter (https://groups.google.com/g/nimble-users/c/a6DFCefYfjU/m/kqUWx9UXCgAJ) at the expense of not allowing any conjugate sampler
 #' \item \code{WAIC} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether WAIC should be calculated online within Nimble. Default to FALSE.
-#' \item \code{WAIC.Nsamples} (only for \code{MCMC_language=="Nimble"}): integer number: number of (nearly independent) samples of parameters in the posterior distribution over which to calculate WAIC. Default to 2000.
-#' \item \code{WAIC.control} (only for \code{MCMC_language=="Nimble"}): named list or list of such named lists: list (or lists) specifying the control parameters to calculate WAIC online within Nimble. Default to list(online=TRUE,dataGroups=NULL,marginalizeNodes=NULL,niterMarginal=1000,convergenceSet=c(0.25,0.5,0.75),thin=TRUE,nburnin_extra=0). Given the way WAIC is here calculated (after convergence and over the last sample outputs for one chain by named list), components thin will be turned to TRUE and nburnin_extra to 0. If several lists are used, only at most the first Nchains lists will be taken into account to calculate WAICs in different ways on different Markov Chains.
+#' \item \code{WAIC.Nsamples} (only for \code{MCMC_language=="Nimble"}): integer number: number of (nearly independent) samples of parameters in the posterior distribution over which to calculate WAIC. If WAIC is calculated on more than one chain, this number will be required for each of these chains. Default to 2000.
+#' \item \code{WAIC.control} (only for \code{MCMC_language=="Nimble"}): named list or list of such named lists: list (or lists) specifying the control parameters to calculate WAIC online within Nimble. Default to list(online=TRUE,dataGroups=NULL,marginalizeNodes=NULL,niterMarginal=1000,convergenceSet=c(0.25,0.5,0.75),thin=TRUE,nburnin_extra=0). Given the way WAIC is here calculated (after convergence and over the last sample outputs for one chain by named list), components thin will be turned to TRUE and nburnin_extra to 0. If several lists are used, only at most the first Nchains - reduced by removal of fixed chains - lists will be taken into account to calculate WAICs in different ways on different Markov Chains.
 #' \item \code{APT} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether \code{NimbleAPT} should be used to allow Adaptive Parallel Tempering for at least a subset of the model parameters. If so, the sampler_RW_tempered sampler is declared for all parameters. If wishing to change sampler, use \code{confModel.expression.toadd}. Default to FALSE.
 #' \item \code{APT.NTemps} (only for \code{MCMC_language=="Nimble"}): integer number: number of temperatures for \code{NimbleAPT}. Default to 7.
 #' \item \code{APT.initTemps} (only for \code{MCMC_language=="Nimble"}): NULL or double vector of length \code{APT.NTemps}: initial temperatures for Nimble APT. Default to NULL in which case initial temperatures will be 1:APT.NTemps. The values should be increasing with a first value of 1.
@@ -109,6 +109,7 @@
 #'             \itemize{ \item \code{converged}: logical: TRUE if model has converged when stopping the MCMC, FALSE otherwise
 #'             \item \code{neffs.reached}: logical: TRUE if model has converged and reached the objectives in terms of effective sample size, FALSE otherwise
 #'             \item \code{final.Nchains}: number of Markov chains finally retained - since some chains could be excluded if invariable.
+#'             \item \code{removed.chains}: identity of the Markov chains finally removed - those that would have been invariable during the first cycle.
 #'             \item \code{burnin}: number of iterations of the transient (burn-in) period
 #'             \item \code{thin}: number of iterations used for thinning the final output
 #'             \item \code{niter.tot}: total number of iterations (of each MCMC chain)
@@ -230,7 +231,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                            control=list(time.max=NULL,
                                         check.convergence=TRUE,check.convergence.firstrun=NULL,recheck.convergence=TRUE,
                                         convtype=NULL,convtype.Gelman=2,convtype.Geweke=c(0.1,0.5),convtype.alpha=0.05,ip.nc=0,neff.method="Stan",
-                                        Ncycles.target=2,props.conv=c(0.25,0.5,0.75),min.Nvalues=300,
+                                        Ncycles.target=2,props.conv=c(0.25,0.5,0.75),min.Nvalues=NULL,
                                         min.thinmult=1.1, force.niter.max=FALSE, force.time.max=FALSE, time.max.turns.off.niter.max=FALSE, safemultiplier.Nvals=1.2,max.prop.decr.neff=0.1,round.thinmult=TRUE,thinmult.in.resetMV.temporary=TRUE,check.thinmult=2,decrease.thinmult.multiplier=0.8, decrease.thinmult.threshold=20,only.final.adapt.thin=FALSE,
                                         identifier.to.print="",print.diagnostics=FALSE,conv.thorough.check=FALSE,print.thinmult=TRUE,innerprint=FALSE,seed=NULL,remove.fixedchains=TRUE,check.installation=TRUE,save.data=FALSE,conveff.final.allparams=TRUE),
                            control.MCMC=list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=-1,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),
@@ -279,16 +280,16 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     window.seq<-function(out,start=NULL,end=NULL,thin=1)
     {#out should be a mcmc.list
       #this function does the same thing as window on mcmc.list except that is allows going backwards thanks to the possibilities of function seq
-      #actually it reverses the order to start from the end first to start from the send then reverses the result
+      #actually it reverses the order to start from the end first to start from the end then reverses the result
       if (is.null(start)) {start<-1}
       if (is.null(end)) {end<-dim(out[[1]])[1]}
       indices<-rev(seq(from=end,to=start,by=-thin))
       res<-out
       for (i in 1:length(out))
       {
-        res[[i]]<-res[[i]][indices,]
+        res[[i]]<-res[[i]][indices,,drop=FALSE]
       }
-      res<-coda::as.mcmc.list(lapply(res,function(x){y=coda::as.mcmc(x);attributes(y)[["mcpar"]]<-c(min(indices), max(indices), thin);y}))
+      res<-coda::as.mcmc.list(lapply(res,function(x){y=coda::as.mcmc(as.matrix(x));attributes(y)[["mcpar"]]<-c(min(indices), max(indices), thin);y}))
       res
     }
 
@@ -303,21 +304,21 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     {
       if (length(grep("logProb_",dimnames(out[[1]])[[2]]))>0)
       {
-        out<-coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x[,-grep("logProb_",dimnames(x)[[2]])])}))
+        out<-coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(as.matrix(x[,-grep("logProb_",dimnames(x)[[2]])]))}))
       }
       tempres_params<-cbind.data.frame(Nchains=length(out),thin=thin*(attributes(out[[1]]))$mcpar[3],niter.tot=niter.tot,Nvalues=dim(out[[1]])[1]*length(out),nu.burn= nburnin.min0+sum(numIter.samplesList[1:(index.conv.local-1)]))
       tempres_params_print<-tempres_params
       row.names(tempres_params_print)<-"MCMC parameters"
 
       if (control$convtype=="Gelman") {
-        tempg<-coda::gelman.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x)})),confidence=1-control$convtype.alpha,autoburnin=FALSE,multivariate=FALSE)[[1]]
-        tempres_conv<-cbind.data.frame(max_gelm_Upper_C_I=max(tempg[,2])[1],med_gelm_Upper_C_I=median(tempg[,2])[1],mean_gelm_Upper_C_I=mean(tempg[,2]),max_gelm_Point_Est=max(tempg[,1])[1],name_max_gelm_Point_Est=names(tempg[,1])[tempg[,1]==max(tempg[,1])][1],med_gelm_Point_Est=median(tempg[,1])[1],mean_gelm_Point_Est=mean(tempg[,1]),prop_gelm_Point_Est_above_1p2=mean(tempg[,1]>1.2),prop_gelm_Point_Est_above_1p05=mean(tempg[,1]>1.05),prop_gelm_Point_Est_above_1p01=mean(tempg[,1]>1.01))
-        tempres_conv_print<-cbind.data.frame(max=formatC_adapted(c(max(tempg[,2])[1],max(tempg[,1])[1])),median=formatC_adapted(c(median(tempg[,2])[1],median(tempg[,1])[1])),mean=formatC_adapted(c(mean(tempg[,2]),mean(tempg[,1]))),name_max=c(names(tempg[,2])[tempg[,2]==max(tempg[,2])][1],names(tempg[,1])[tempg[,1]==max(tempg[,1])][1]),prop_ab_1p2=formatC_adapted(c(mean(tempg[,2]>1.2),mean(tempg[,1]>1.2))),prop_ab_1p05=formatC_adapted(c(mean(tempg[,2]>1.05),mean(tempg[,1]>1.05))),prop_ab_1p01=formatC_adapted(c(mean(tempg[,2]>1.01),mean(tempg[,1]>1.01))))
+        tempg<-coda::gelman.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(as.matrix(x))})),confidence=1-control$convtype.alpha,autoburnin=FALSE,multivariate=FALSE)[[1]]
+        tempres_conv<-cbind.data.frame(max_gelm_Upper_C_I=max(tempg[,2])[1],med_gelm_Upper_C_I=median(tempg[,2])[1],mean_gelm_Upper_C_I=mean(tempg[,2]),max_gelm_Point_Est=max(tempg[,1])[1],name_max_gelm_Point_Est=(dimnames(tempg)[[1]])[tempg[,1]==max(tempg[,1])][1],med_gelm_Point_Est=median(tempg[,1])[1],mean_gelm_Point_Est=mean(tempg[,1]),prop_gelm_Point_Est_above_1p2=mean(tempg[,1]>1.2),prop_gelm_Point_Est_above_1p05=mean(tempg[,1]>1.05),prop_gelm_Point_Est_above_1p01=mean(tempg[,1]>1.01))
+        tempres_conv_print<-cbind.data.frame(max=formatC_adapted(c(max(tempg[,2])[1],max(tempg[,1])[1])),median=formatC_adapted(c(median(tempg[,2])[1],median(tempg[,1])[1])),mean=formatC_adapted(c(mean(tempg[,2]),mean(tempg[,1]))),name_max=c((dimnames(tempg)[[1]])[tempg[,2]==max(tempg[,2])][1],(dimnames(tempg)[[1]])[tempg[,1]==max(tempg[,1])][1]),prop_ab_1p2=formatC_adapted(c(mean(tempg[,2]>1.2),mean(tempg[,1]>1.2))),prop_ab_1p05=formatC_adapted(c(mean(tempg[,2]>1.05),mean(tempg[,1]>1.05))),prop_ab_1p01=formatC_adapted(c(mean(tempg[,2]>1.01),mean(tempg[,1]>1.01))))
         row.names(tempres_conv_print)<-c("Gelman_Upper_C_I","Gelman_Point_Est")
       }
 
       if (control$convtype=="Gelman_new") {
-        tempg<-as.data.frame(ggmcmc::ggs_Rhat(ggmcmc::ggs(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x)}))),plot=FALSE))
+        tempg<-as.data.frame(ggmcmc::ggs_Rhat(ggmcmc::ggs(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(as.matrix(x))}))),plot=FALSE))
         row.names(tempg)<-as.character(tempg[,1])
         tempg<-tempg[,2,drop=FALSE]
         tempres_conv<-cbind.data.frame(max_gelm_Point_Est=max(tempg[,1])[1],name_max_gelm_Point_Est=row.names(tempg)[tempg[,1]==max(tempg[,1])][1],med_gelm_Point_Est=median(tempg[,1])[1],mean_gelm_Point_Est=mean(tempg[,1]),prop_gelm_Point_Est_above_1p2=mean(tempg[,1]>1.2),prop_gelm_Point_Est_above_1p05=mean(tempg[,1]>1.05),prop_gelm_Point_Est_above_1p01=mean(tempg[,1]>1.01))
@@ -327,14 +328,14 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
 
       if (control$convtype=="Geweke") {
-        tempg<-abs(coda::geweke.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x)}))[[1]],frac1=control$convtype.Geweke[1],frac2=control$convtype.Geweke[2])$z)
+        tempg<-abs(coda::geweke.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(as.matrix(x))}))[[1]],frac1=control$convtype.Geweke[1],frac2=control$convtype.Geweke[2])$z)
         tempres_conv<-cbind.data.frame(max_gew=max(tempg),med_gew=median(tempg),mean_gew=mean(tempg),name_max_gew=names(tempg)[tempg==max(tempg)][1],prop_gew_above_p975=mean(tempg>qnorm(0.975)),prop_gew_above_p995=mean(tempg>qnorm(0.995)),prop_gew_above_p9995=mean(tempg>qnorm(0.9995)))
         tempres_conv_print<-cbind.data.frame(max=formatC_adapted(max(tempg)),median=formatC_adapted(median(tempg)),mean=formatC_adapted(mean(tempg)),name_max=names(tempg)[tempg==max(tempg)][1],prop_ab_p975=formatC_adapted(mean(tempg>qnorm(0.975))),prop_ab_p995=formatC_adapted(mean(tempg>qnorm(0.995))),prop_ab_p9995=formatC_adapted(mean(tempg>qnorm(0.9995))))
         row.names(tempres_conv_print)<-c("Geweke")
       }
 
       if (control$convtype=="Heidelberger") {
-        tempg<-1-(coda::heidel.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x)}))[[1]],pvalue=control$convtype.alpha)[,"stest"])
+        tempg<-1-(coda::heidel.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(as.matrix(x))}))[[1]],pvalue=control$convtype.alpha)[,"stest"])
         tempres_conv<-cbind.data.frame(max_gew=max(tempg),med_gew=median(tempg),mean_gew=mean(tempg),name_max_gew=names(tempg)[tempg==max(tempg)][1],prop_gew_above_p975=mean(tempg>qnorm(0.975)),prop_gew_above_p995=mean(tempg>qnorm(0.995)),prop_gew_above_p9995=mean(tempg>qnorm(0.9995)))
         tempres_conv_print<-cbind.data.frame(max=formatC_adapted(max(tempg)),median=formatC_adapted(median(tempg)),mean=formatC_adapted(mean(tempg)),name_max=names(tempg)[tempg==max(tempg)][1],prop_ab_p975=formatC_adapted(mean(tempg>qnorm(0.975))),prop_ab_p995=formatC_adapted(mean(tempg>qnorm(0.995))),prop_ab_p9995=formatC_adapted(mean(tempg>qnorm(0.9995))))
         row.names(tempres_conv_print)<-c("Heidelberger")
@@ -342,14 +343,17 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
       ### calculs squares_Ses_ratios
       tempsu<-summary(out)[[1]]
+      if (is.null(dimnames(tempsu)[[1]])) {names.tempsu<-c("only.parameter")} else {names.tempsu<-dimnames(tempsu)[[1]]}
+      tempsu<-matrix(tempsu,ncol=4)
       squared_SE_ratio<-((tempsu[,4])/(tempsu[,3]))^2
+      names(squared_SE_ratio)<-names.tempsu
       #print(squared_SE_ratio)
       tempres_SEs<-cbind.data.frame(max_sqSEratio=max(squared_SE_ratio)[1],name_max_sqSEratio=names(squared_SE_ratio)[squared_SE_ratio==max(squared_SE_ratio)][1],med_sqSEratio=median(squared_SE_ratio)[1],prop_sqSEratio_above_2=mean(squared_SE_ratio>2),prop_sqSEratio_above_1p2=mean(squared_SE_ratio>1.2))
 
       if (control$neff.method=="Stan")
       {
         MonModelStan<- aperm(as.array(out,drop=FALSE),c(1,3,2))
-        dimnames(MonModelStan)<-list(NULL,NULL,dimnames(out[[1]])[[2]])
+        dimnames(MonModelStan)<-list(NULL,NULL,{toto<-dimnames(out[[1]])[[2]]; duplicates<-duplicated(toto); duplicates<-(1:length(duplicates))[duplicates]; if (length(duplicates)>0) {toto[duplicates]<-paste0(toto[duplicates],".",1:length(duplicates))};toto})
         tempm<-rstan::monitor(MonModelStan,print=control$innerprint,warmup=0)[,"n_eff"]
       }
 
@@ -379,10 +383,12 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
 
     conveff_final<-function(out,indices.conv,conveff.final.allparams=TRUE,print.diagnostics=FALSE)
-    {
-      condition.conv<-is.element(1:(dim(out[[1]])[2]),indices.conv)
+    {if (length(dim(out[[1]]))==2)
+		{condition.conv<-is.element(1:(dim(out[[1]])[2]),indices.conv) }
+		else {out<-coda::as.mcmc.list(out)[,indices.conv,drop=FALSE]
+		condition.conv<-rep(TRUE,dim(out[[1]])[2])}
       if (!conveff.final.allparams) {
-        out<-coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x[,condition.conv])}))
+        out<-coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(as.matrix(x[,condition.conv]))}))
         condition.conv<-rep(TRUE,dim(out[[1]])[2])
         }
 
@@ -390,7 +396,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
       if (length(grep("logProb_",dimnames(out[[1]])[[2]]))>0)
       {
         condition.conv<-condition.conv[-grep("logProb_",dimnames(out[[1]])[[2]])]
-        out<-coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x[,-grep("logProb_",dimnames(x)[[2]])])}))
+        out<-coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(as.matrix(x[,-grep("logProb_",dimnames(x)[[2]])]))}))
       }
 
       tempres_params<-cbind.data.frame(Nchains=length(out),thin=thin*(attributes(out[[1]]))$mcpar[3],niter.tot=niter.tot,Nvalues=dim(out[[1]])[1]*length(out),nu.burn= nburnin.min0+sum(numIter.samplesList[1:(index.conv.local-1)]))
@@ -398,14 +404,14 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
       row.names(tempres_params_print)<-"MCMC parameters"
 
       if (control$convtype=="Gelman") {
-        tempg<-coda::gelman.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x)})),confidence=1-control$convtype.alpha,autoburnin=FALSE,multivariate=FALSE)[[1]]
-        tempres_conv<-cbind.data.frame(max_gelm_Upper_C_I=max(tempg[,2])[1],med_gelm_Upper_C_I=median(tempg[,2])[1],mean_gelm_Upper_C_I=mean(tempg[,2]),max_gelm_Point_Est=max(tempg[,1])[1],name_max_gelm_Point_Est=names(tempg[,1])[tempg[,1]==max(tempg[,1])][1],med_gelm_Point_Est=median(tempg[,1])[1],mean_gelm_Point_Est=mean(tempg[,1]),prop_gelm_Point_Est_above_1p2=mean(tempg[,1]>1.2),prop_gelm_Point_Est_above_1p05=mean(tempg[,1]>1.05),prop_gelm_Point_Est_above_1p01=mean(tempg[,1]>1.01))
-        tempres_conv_print<-cbind.data.frame(max=formatC_adapted(c(max(tempg[condition.conv,2])[1],max(tempg[condition.conv,1])[1])),median=formatC_adapted(c(median(tempg[condition.conv,2])[1],median(tempg[condition.conv,1])[1])),mean=formatC_adapted(c(mean(tempg[condition.conv,2]),mean(tempg[condition.conv,1]))),name_max=c(names(tempg[condition.conv,2])[tempg[condition.conv,2]==max(tempg[condition.conv,2])][1],names(tempg[condition.conv,1])[tempg[condition.conv,1]==max(tempg[condition.conv,1])][1]),prop_ab_1p2=formatC_adapted(c(mean(tempg[condition.conv,2]>1.2),mean(tempg[condition.conv,1]>1.2))),prop_ab_1p05=formatC_adapted(c(mean(tempg[condition.conv,2]>1.05),mean(tempg[condition.conv,1]>1.05))),prop_ab_1p01=formatC_adapted(c(mean(tempg[condition.conv,2]>1.01),mean(tempg[condition.conv,1]>1.01))))
+        tempg<-coda::gelman.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(as.matrix(x))})),confidence=1-control$convtype.alpha,autoburnin=FALSE,multivariate=FALSE)[[1]]
+        tempres_conv<-cbind.data.frame(max_gelm_Upper_C_I=max(tempg[,2])[1],med_gelm_Upper_C_I=median(tempg[,2])[1],mean_gelm_Upper_C_I=mean(tempg[,2]),max_gelm_Point_Est=max(tempg[,1])[1],name_max_gelm_Point_Est=(dimnames(tempg)[[1]])[tempg[,1]==max(tempg[,1])][1],med_gelm_Point_Est=median(tempg[,1])[1],mean_gelm_Point_Est=mean(tempg[,1]),prop_gelm_Point_Est_above_1p2=mean(tempg[,1]>1.2),prop_gelm_Point_Est_above_1p05=mean(tempg[,1]>1.05),prop_gelm_Point_Est_above_1p01=mean(tempg[,1]>1.01))
+        tempres_conv_print<-cbind.data.frame(max=formatC_adapted(c(max(tempg[condition.conv,2])[1],max(tempg[condition.conv,1])[1])),median=formatC_adapted(c(median(tempg[condition.conv,2])[1],median(tempg[condition.conv,1])[1])),mean=formatC_adapted(c(mean(tempg[condition.conv,2]),mean(tempg[condition.conv,1]))),name_max=c((dimnames(tempg[condition.conv,,drop=FALSE])[[1]])[tempg[condition.conv,2]==max(tempg[condition.conv,2])][1],(dimnames(tempg[condition.conv,,drop=FALSE])[[1]])[tempg[condition.conv,1]==max(tempg[condition.conv,1])][1]),prop_ab_1p2=formatC_adapted(c(mean(tempg[condition.conv,2]>1.2),mean(tempg[condition.conv,1]>1.2))),prop_ab_1p05=formatC_adapted(c(mean(tempg[condition.conv,2]>1.05),mean(tempg[condition.conv,1]>1.05))),prop_ab_1p01=formatC_adapted(c(mean(tempg[condition.conv,2]>1.01),mean(tempg[condition.conv,1]>1.01))))
         row.names(tempres_conv_print)<-c("Gelman_Upper_C_I","Gelman_Point_Est")
       }
 
       if (control$convtype=="Gelman_new") {
-        tempg<-as.data.frame(ggmcmc::ggs_Rhat(ggmcmc::ggs(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x)}))),plot=FALSE))
+        tempg<-as.data.frame(ggmcmc::ggs_Rhat(ggmcmc::ggs(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(as.matrix(x))}))),plot=FALSE))
         row.names(tempg)<-as.character(tempg[,1])
         tempg<-tempg[,2,drop=FALSE]
         tempres_conv<-cbind.data.frame(max_gelm_Point_Est=max(tempg[,1])[1],name_max_gelm_Point_Est=row.names(tempg)[tempg[,1]==max(tempg[,1])][1],med_gelm_Point_Est=median(tempg[,1])[1],mean_gelm_Point_Est=mean(tempg[,1]),prop_gelm_Point_Est_above_1p2=mean(tempg[,1]>1.2),prop_gelm_Point_Est_above_1p05=mean(tempg[,1]>1.05),prop_gelm_Point_Est_above_1p01=mean(tempg[,1]>1.01))
@@ -414,29 +420,34 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
       }
 
       if (control$convtype=="Geweke") {
-        tempg<-abs(coda::geweke.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x)}))[[1]],frac1=control$convtype.Geweke[1],frac2=control$convtype.Geweke[2])$z)
+        tempg<-abs(coda::geweke.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(as.matrix(x))}))[[1]],frac1=control$convtype.Geweke[1],frac2=control$convtype.Geweke[2])$z)
         tempres_conv<-cbind.data.frame(max_gew=max(tempg),med_gew=median(tempg),mean_gew=mean(tempg),name_max_gew=names(tempg)[tempg==max(tempg)][1],prop_gew_above_p975=mean(tempg>qnorm(0.975)),prop_gew_above_p995=mean(tempg>qnorm(0.995)),prop_gew_above_p9995=mean(tempg>qnorm(0.9995)))
         tempres_conv_print<-cbind.data.frame(max=formatC_adapted(max(tempg[condition.conv])),median=formatC_adapted(median(tempg[condition.conv])),mean=formatC_adapted(mean(tempg[condition.conv])),name_max=names(tempg[condition.conv])[tempg[condition.conv]==max(tempg[condition.conv])][1],prop_ab_p975=formatC_adapted(mean(tempg[condition.conv]>qnorm(0.975))),prop_ab_p995=formatC_adapted(mean(tempg[condition.conv]>qnorm(0.995))),prop_ab_p9995=formatC_adapted(mean(tempg[condition.conv]>qnorm(0.9995))))
         row.names(tempres_conv_print)<-c("Geweke")
       }
 
       if (control$convtype=="Heidelberger") {
-        tempg<-1-(coda::heidel.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(x)}))[[1]],pvalue=control$convtype.alpha)[,"stest"])
+        tempg<-1-(coda::heidel.diag(coda::as.mcmc.list(lapply(out,function(x){coda::as.mcmc(as.matrix(x))}))[[1]],pvalue=control$convtype.alpha)[,"stest"])
         tempres_conv<-cbind.data.frame(max_gew=max(tempg),med_gew=median(tempg),mean_gew=mean(tempg),name_max_gew=names(tempg)[tempg==max(tempg)][1],prop_gew_above_p975=mean(tempg>qnorm(0.975)),prop_gew_above_p995=mean(tempg>qnorm(0.995)),prop_gew_above_p9995=mean(tempg>qnorm(0.9995)))
         tempres_conv_print<-cbind.data.frame(max=formatC_adapted(max(tempg[condition.conv])),median=formatC_adapted(median(tempg[condition.conv])),mean=formatC_adapted(mean(tempg[condition.conv])),name_max=names(tempg[condition.conv])[tempg[condition.conv]==max(tempg[condition.conv])][1],prop_ab_p975=formatC_adapted(mean(tempg[condition.conv]>qnorm(0.975))),prop_ab_p995=formatC_adapted(mean(tempg[condition.conv]>qnorm(0.995))),prop_ab_p9995=formatC_adapted(mean(tempg[condition.conv]>qnorm(0.9995))))
         row.names(tempres_conv_print)<-c("Heidelberger")
       }
 
       ### calculs squares_Ses_ratios
+      #used matrix and specvial treatment of dimnames due to trasnge behaviour of summary.mcmc in case only one parameter
       tempsu<-summary(out)[[1]]
-      squared_SE_ratio<-((tempsu[,4])/(tempsu[,3]))^2
+      if (is.null(dimnames(tempsu)[[1]])) {names.tempsu<-c("only.parameter")} else {names.tempsu<-dimnames(tempsu)[[1]]}
+        tempsu<-matrix(tempsu,ncol=4)
+        squared_SE_ratio<-((tempsu[,4])/(tempsu[,3]))^2
+        names(squared_SE_ratio)<-names.tempsu
+
       #print(squared_SE_ratio)
       tempres_SEs<-cbind.data.frame(max_sqSEratio=max(squared_SE_ratio)[1],name_max_sqSEratio=names(squared_SE_ratio)[squared_SE_ratio==max(squared_SE_ratio)][1],med_sqSEratio=median(squared_SE_ratio)[1],prop_sqSEratio_above_2=mean(squared_SE_ratio>2),prop_sqSEratio_above_1p2=mean(squared_SE_ratio>1.2))
 
       if (control$neff.method=="Stan")
       {
         MonModelStan<- aperm(as.array(out,drop=FALSE),c(1,3,2))
-        dimnames(MonModelStan)<-list(NULL,NULL,dimnames(out[[1]])[[2]])
+        dimnames(MonModelStan)<-list(NULL,NULL,{toto<-dimnames(out[[1]])[[2]]; duplicates<-duplicated(toto); duplicates<-(1:length(duplicates))[duplicates]; if (length(duplicates)>0) {toto[duplicates]<-paste0(toto[duplicates],".",1:length(duplicates))};toto})
         tempm<-rstan::monitor(MonModelStan,print=control$innerprint,warmup=0)[,"n_eff"]
       }
 
@@ -656,7 +667,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
     ### putting the control argument in the good format in case it is specified partially
     control0<-list(time.max=NULL,check.convergence=TRUE,check.convergence.firstrun=NULL,recheck.convergence=TRUE,convtype=NULL,
-                   convtype.Gelman=2,convtype.Geweke=c(0.1,0.5),convtype.alpha=0.05,ip.nc=0,neff.method="Stan",Ncycles.target=2,props.conv=c(0.25,0.5,0.75),min.Nvalues=300,
+                   convtype.Gelman=2,convtype.Geweke=c(0.1,0.5),convtype.alpha=0.05,ip.nc=0,neff.method="Stan",Ncycles.target=2,props.conv=c(0.25,0.5,0.75),min.Nvalues=NULL,
                    min.thinmult=1.1, force.niter.max=FALSE, force.time.max=FALSE, time.max.turns.off.niter.max=FALSE, safemultiplier.Nvals=1.2,max.prop.decr.neff=0.1,round.thinmult=TRUE,thinmult.in.resetMV.temporary=TRUE,check.thinmult=2,decrease.thinmult.multiplier=0.8, decrease.thinmult.threshold=20,only.final.adapt.thin=FALSE,
                    identifier.to.print="",print.diagnostics=FALSE,conv.thorough.check=FALSE,print.thinmult=TRUE,innerprint=FALSE,seed=NULL,remove.fixedchains=TRUE,check.installation=TRUE,save.data=FALSE,conveff.final.allparams=TRUE)
 
@@ -858,14 +869,14 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     if (length(control$Ncycles.target)==1 & (control$Ncycles.target)<1) {stop("control$Ncycles.target should be greater than 1.")}
 
     ## checking adequacy of min.Nvalues
-    if (length(control$min.Nvalues)>1) {print("control$min.Nvalues has more than one elements. Reduced to its first element"); control$min.Nvalues<-control$min.Nvalues[[1]]}
-    if (length(control$min.Nvalues)<1) {stop("control$min.Nvalues has zero length. Not possible")}
     if (is.expression(control$min.Nvalues)) {control$min.Nvalues<-eval(control$min.Nvalues)}
     if (length(control$min.Nvalues)>1) {print("control$min.Nvalues has more than one elements. Reduced to its first element"); control$min.Nvalues<-control$min.Nvalues[[1]]}
-    if (length(control$min.Nvalues)<1) {stop("control$min.Nvalues has zero length. Not possible")}
+    if (length(control$min.Nvalues)<1) { control$min.Nvalues<-neff.max}
+    if (length(control$min.Nvalues)>1) {print("control$min.Nvalues has more than one elements. Reduced to its first element"); control$min.Nvalues<-control$min.Nvalues[[1]]}
     if (length(control$min.Nvalues)==1 & mode(control$min.Nvalues)!="numeric") {stop("control$min.Nvalues is not of mode double.")}
     control$min.Nvalues=round(control$min.Nvalues)
     if (length(control$min.Nvalues)==1 & (control$min.Nvalues)<1) {stop("control$min.Nvalues should be greater than 1.")}
+    min.Nvalues<-control$min.Nvalues
 
     ## checking adequacy of props.conv; other checks done in 0.1.4
     if (length(control$props.conv)<1) {stop("control$props.conv has zero length. Not possible")}
@@ -1286,7 +1297,6 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     #recoding control.MCMC$n.adapt if is has its default value of -1 depending on whether we are with Nimble or Jags:
     if (control.MCMC$n.adapt==-1 & MCMC_language=="Nimble") {control.MCMC$n.adapt=0}
     if (control.MCMC$n.adapt==-1 & MCMC_language=="Jags") {control.MCMC$n.adapt=1000}
-    min.Nvalues<-control$min.Nvalues
     force.niter.max<-control$force.niter.max
     force.time.max<-control$force.time.max
     index.conv<-1 ## will contain the index (in rows) of the transient period in number of rows in samplesList[[1]] (as diagnosed by convergence diagnostics)
@@ -1690,10 +1700,10 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         }
         if (!control.MCMC$APT)
           {
-          samplesList <- coda::as.mcmc.list(lapply(samplesList, coda::as.mcmc))
+          samplesList <- coda::as.mcmc.list(lapply(samplesList, function(x){coda::as.mcmc(as.matrix(x))}))
           mvSamples.previous<-dim(samplesList[[1]])[1]
           } else  {
-          samplesList <- window(coda::as.mcmc.list(lapply(samplesList, coda::as.mcmc)),start=3)
+          samplesList <- window(coda::as.mcmc.list(lapply(samplesList, function(x){coda::as.mcmc(as.matrix(x))})),start=3)
           mvSamples.previous<-dim(samplesList[[1]])[1]
           }
 
@@ -1744,11 +1754,11 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         })
         if (!control.MCMC$APT)
           {
-            samplesList <- coda::as.mcmc.list(lapply(out1, function(x){coda::as.mcmc(x[[1]])}))
+            samplesList <- coda::as.mcmc.list(lapply(out1, function(x){coda::as.mcmc(as.matrix(x[[1]]))}))
             mvSamples.previous<-dim(out1[[1]])[1]
           } else  {
-            samplesList <- window(coda::as.mcmc.list(lapply(out1, function(x){coda::as.mcmc(x[[1]])})),start=3)
-            mvSamples.previous<-dim(window(coda::as.mcmc.list(lapply(out1, function(x){coda::as.mcmc(x[[1]])})),start=3)[[1]])[1]
+            samplesList <- window(coda::as.mcmc.list(lapply(out1, function(x){coda::as.mcmc(as.matrix(x[[1]]))})),start=3)
+            mvSamples.previous<-dim(window(coda::as.mcmc.list(lapply(out1, function(x){coda::as.mcmc(as.matrix(x[[1]]))})),start=3)[[1]])[1]
           }
 
 
@@ -1849,13 +1859,23 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
     #variable that will contain the updated number of (valid) MCMC chains
     Nchains.updated<-Nchains
+	chains.to.remove<-NULL
     if (control$remove.fixedchains)
     {chains.to.remove<-(1:Nchains)[apply(matrix(sapply(samplesList,function(x){apply(as.matrix(x),2,var)}),ncol=Nchains),2,sum)==0]
     Nchains.updated<-Nchains-length(chains.to.remove)
+	if (length((control.MCMC$WAIC.control))>Nchains.updated) {print("control.MCMC$WAIC.control has more than Nchains.updated=",Nchains.updated," elements; truncated to the first Nchains.updated elements"); control.MCMC$WAIC.control<-control.MCMC$WAIC.control[1:Nchains.updated] }
+
     if (Nchains.updated==0)
     {stop("All MCMC chains have fixed parameters. Consider revising the initial values or the model.")
     }
-    if (control$convtype=="Gelman"&Nchains.updated==1) {stop("Impossible to use the Gelman-Rubin convergence diagnostic with only one MCMC chain (***after update of Nchains***): please change Nchain or control$convtype")}
+	if (Nchains.updated==1 & length(chains.to.remove)>0)
+    {
+	#impossible to do the following because targets were not defined for Geweke
+	#print("control$convtype turned to Geweke because only one acvtive chain remaining")
+	#control$convtype=="Geweke"
+	stop("Impossible to use the Gelman-Rubin convergence diagnostic with only one MCMC chain (***after update of Nchains***): please change Nchain or control$convtype or update your initial values")
+
+	}
 
     }
 
@@ -2077,9 +2097,20 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     {samplesList.temp<-coda::as.mcmc.list(samplesList[-chains.to.remove])}
     else
     {samplesList.temp<-samplesList}
-
     size.samplesList.temp<-size.samplesList
     index.conv.temp<-index.conv
+
+    ## adding component to calculate indices.samplesList
+    numIter.sum<-sum(numIter.samplesList)
+    numIter.sum.conv<-sum(numIter.samplesList[1:index.conv])
+    iters.ref<-rev(seq(from=numIter.sum,to=numIter.sum.conv,by=-thin))
+    numIter.cumsum<-cumsum(numIter.samplesList)
+    indices.samplesList<-iters.ref
+    for (i in 1:length(iters.ref))
+    {
+      indices.samplesList[i]<-which.min(abs(numIter.cumsum-iters.ref[i]))
+    }
+
   }) ## END: current.CPU.time<-system.time({
   CPUtime.btadjust<-CPUtime.btadjust+current.CPU.time[1]+current.CPU.time[2]+ifelse(is.na(current.CPU.time[4]),0, current.CPU.time[4])+ifelse(is.na(current.CPU.time[5]),0, current.CPU.time[5])
   childCPUtime.btadjust<-childCPUtime.btadjust+current.CPU.time[4]+current.CPU.time[5]
@@ -2231,16 +2262,17 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         print("###################################################################################")
 
         if (MCMC_language=="Nimble")
-        {
+        {chains.to.update<-setdiff(1:Nchains,chains.to.remove)
           if (!control.MCMC$parallelize)
           {
-            for (i in 1:Nchains)
+            for (i in chains.to.update)
             {message("      Running chain ", i, ", with ", niter, " iterations...")
-              if (length(control$seed)>0)
+			  if (length(control$seed)>0)
               {set.seed(control$seed+i+Ncycles*Nchains)}
               if (!control.MCMC$APT) {CModelMCMC[[i]]$run(niter, thin=thin, progressBar =TRUE,reset=FALSE,resetMV=as.logical(max(control.MCMC$resetMV,resetMV.temporary)))
                 #if (! control.MCMC$resetMV) {samplesList[[i]] <- as.matrix(CModelMCMC[[i]]$mvSamples)}
-                } else {
+				##NB: allocation of values of CModelMCMC[[i]] to samplesList done a dozen of lines below
+				} else {
 
                   nIter   <- niter
                   CModelMCMC[[i]]$thinPrintTemps<-eval(control.MCMC$APT.thinPrintTemps)
@@ -2256,12 +2288,17 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                   TempsList[[i]]<-rbind(TempsList[[i]],CModelMCMC[[i]]$Temps)
                 }
             }
+
             if (!control.MCMC$APT) {
-              samplesList<- coda::as.mcmc.list(lapply(seq_len(length(samplesList)),function(x){coda::as.mcmc(rbind(as.matrix(samplesList[[x]]),if(as.logical(max(control.MCMC$resetMV,resetMV.temporary))){as.matrix(CModelMCMC[[x]]$mvSamples)}else{as.matrix(CModelMCMC[[x]]$mvSamples)[-(1:mvSamples.previous),]}))}))
-              mvSamples.previous<-dim(as.matrix(CModelMCMC[[1]]$mvSamples))[1]
+
+              samplesList[chains.to.update]<- lapply(chains.to.update,function(x){rbind(as.matrix(samplesList[[x]]),if(as.logical(max(control.MCMC$resetMV,resetMV.temporary))){as.matrix(CModelMCMC[[x]]$mvSamples)}else{as.matrix(CModelMCMC[[x]]$mvSamples)[-(1:mvSamples.previous),,drop=FALSE]})})
+              samplesList[chains.to.remove]<-lapply(chains.to.remove,function(x){samplesList[[chains.to.update[1]]]})
+			  samplesList <- window(coda::as.mcmc.list(lapply(samplesList, function(x){coda::as.mcmc(as.matrix(x))})))
+			  mvSamples.previous<-dim(as.matrix(CModelMCMC[[1]]$mvSamples))[1]
 
             } else  { #then control.MCMC$APT : for the moment no possibility of resetMV in this: hence old formula
-              samplesList <- window(coda::as.mcmc.list(lapply(samplesList, coda::as.mcmc)),start=3)
+              samplesList[chains.to.remove]<-lapply(chains.to.remove,function(x){samplesList[[chains.to.update[1]]]})
+			  samplesList <- window(coda::as.mcmc.list(lapply(samplesList, function(x){coda::as.mcmc(as.matrix(x))})),start=3)
               mvSamples.previous<-dim(as.matrix(CModelMCMC[[1]]$mvSamples))[1]
             }
 
@@ -2269,11 +2306,11 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
             message("      Running ", Nchains, " chains in parallel, with ", niter, " iterations...")
 
             parallel::clusterExport(cl, c("Ncycles","niter", "thin", "nburnin","resetMV.temporary","mvSamples.previous"),envir=environment())
-            out1 <- parallel::clusterEvalQ(cl, {
+            out1 <- parallel::clusterEvalQ(cl[chains.to.update], {
               #if (length(control$seed)>0)
               #{set.seed(control$seed+clusterNumber+Ncycles*Nchains)}
               if (!control.MCMC$APT) {CModelMCMC[[i]]$run(niter, thin = thin, progressBar =TRUE,reset = FALSE,resetMV=as.logical(max(control.MCMC$resetMV,resetMV.temporary)))
-                 samplesList<- coda::as.mcmc(rbind(as.matrix(samplesList),if(as.logical(max(control.MCMC$resetMV,resetMV.temporary))){as.matrix(CModelMCMC[[i]]$mvSamples)}else{as.matrix(CModelMCMC[[i]]$mvSamples)[-(1:mvSamples.previous),]}))
+                 samplesList<- coda::as.mcmc(rbind(as.matrix(samplesList),if(as.logical(max(control.MCMC$resetMV,resetMV.temporary))){as.matrix(CModelMCMC[[i]]$mvSamples)}else{as.matrix(CModelMCMC[[i]]$mvSamples)[-(1:mvSamples.previous),,drop=FALSE]}))
 
 
                 return(list(samplesList,dim(as.matrix(CModelMCMC[[1]]$mvSamples))[1]))} else {
@@ -2303,11 +2340,15 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
             })
             if (!control.MCMC$APT)
               {
-              samplesList <- coda::as.mcmc.list(lapply(out1, function(x){coda::as.mcmc(x[[1]])}))
-              mvSamples.previous<-out1[[1]][[2]]
+              samplesList[chains.to.update] <- coda::as.mcmc.list(lapply(out1, function(x){coda::as.mcmc(as.matrix(x[[1]]))}))
+			  samplesList[chains.to.remove]<-lapply(chains.to.remove,function(x){samplesList[[chains.to.update[1]]]})
+			  samplesList <- window(coda::as.mcmc.list(lapply(samplesList, function(x){coda::as.mcmc(as.matrix(x))})))
+			  mvSamples.previous<-out1[[1]][[2]]
 
               } else  {#then control.MCMC$APT : for the moment possibility of resetMV in this not used: hence old formula
-              samplesList <- window(coda::as.mcmc.list(lapply(out1, function(x){coda::as.mcmc(x[[1]])})),start=3)
+              samplesList[chains.to.update] <- coda::as.mcmc.list(lapply(out1, function(x){coda::as.mcmc(as.matrix(x[[1]]))}))
+			  samplesList[chains.to.remove]<-lapply(chains.to.remove,function(x){samplesList[[chains.to.update[1]]]})
+			  samplesList <- window(coda::as.mcmc.list(lapply(samplesList, function(x){coda::as.mcmc(as.matrix(x))})),start=3)
               mvSamples.previous<-out1[[1]][[3]]
               TempsList<-lapply(1:Nchains,function(x){rbind(TempsList[[x]],out1[[x]][[2]])})
               }
@@ -2375,17 +2416,17 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
           indices.samplesList[i]<-which.min(abs(numIter.cumsum-iters.ref[i]))
         }
 
-        ## tranferring the part of samplesList corresponding to indices.samplesList to samplesList.temp
+        ## transferring the part of samplesList corresponding to indices.samplesList to samplesList.temp
         samplesList.temp<-samplesList
         ## associated index.conv is 1 by definition
         index.conv.temp<-1
         index.conv0.temp<-index.conv.temp
         for (i in 1:Nchains)
         {
-          samplesList.temp[[i]]<-samplesList[[i]][indices.samplesList,]
+          samplesList.temp[[i]]<-samplesList[[i]][indices.samplesList,,drop=FALSE]
         }
 
-        samplesList.temp <- coda::as.mcmc.list(lapply(samplesList.temp, coda::as.mcmc))
+        samplesList.temp <- coda::as.mcmc.list(lapply(samplesList.temp, function(x){coda::as.mcmc(as.matrix(x))}))
 
         if (length(chains.to.remove)>0)
         {samplesList.temp<-coda::as.mcmc.list(samplesList.temp[-chains.to.remove])}
@@ -2416,10 +2457,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
             index.conv.temp<-index.conv.new
             index.conv.local<-indices.samplesList[index.conv.temp]
             nburnin<-nburnin.min+sum(numIter.samplesList[1:(index.conv.local-1)])
-            if (length(chains.to.remove)>0)
-            {diags<-conveff(window(coda::as.mcmc.list(samplesList.temp[-chains.to.remove])[,indices.conv],start=index.conv.temp,end=size.samplesList.temp),control$print.diagnostics)}
-            else
-            {diags<-conveff(window(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp),control$print.diagnostics)}
+            diags<-conveff(window(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp),control$print.diagnostics)
             index.props.conv<-index.props.conv+1
             index.conv.new<-floor(quantile(index.conv0.temp:size.samplesList.temp,control$props.conv[index.props.conv]))
             index.conv.new0<-indices.samplesList[index.conv.new]
@@ -2432,10 +2470,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
               index.conv.local<-indices.samplesList[index.conv.new]
               if (((nburnin.min+sum(numIter.samplesList[1:(index.conv.local-1)]))<nburnin.max)&(control$props.conv[index.props.conv]<1)&((length(index.conv.new:size.samplesList.temp)*Nchains.updated)>min.Nvalues))
               {
-                if (length(chains.to.remove)>0)
-                {diags.collection<-c(diags.collection,list(conveff(window(coda::as.mcmc.list(samplesList.temp[-chains.to.remove])[,indices.conv],start=index.conv.new,end=size.samplesList.temp),control$print.diagnostics)))}
-                else
-                {diags.collection<-c(diags.collection,list(conveff(window(samplesList.temp[,indices.conv],start=index.conv.new,end=size.samplesList.temp),control$print.diagnostics)))}
+                diags.collection<-c(diags.collection,list(conveff(window(samplesList.temp[,indices.conv],start=index.conv.new,end=size.samplesList.temp),control$print.diagnostics)))
               }
             }
             ### determine best index.props.conv ::: 1- convergence; 2- best overallneff within category of conv.??
@@ -2616,6 +2651,8 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
         ### 2.5.1: specifying the new thinmult level
         ########################################
         ###here only take the rounded version to ease work with window
+
+        diags<-conveff(window.seq(samplesList.temp[,indices.conv],start=index.conv.temp,end=size.samplesList.temp,thin=1),control$print.diagnostics)
         thinmult<-min(calculate.thinmult.target(diags,TRUE,neff.min,neff.med,neff.mean),thin.max/thin)
         if (control$print.thinmult)
         {
@@ -2680,10 +2717,10 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
           index.conv0.temp<-index.conv.temp
           for (i in 1:Nchains)
           {
-            samplesList.temp[[i]]<-samplesList[[i]][indices.samplesList,]
+            samplesList.temp[[i]]<-samplesList[[i]][indices.samplesList,,drop=FALSE]
           }
 
-          samplesList.temp <- coda::as.mcmc.list(lapply(samplesList.temp, coda::as.mcmc))
+          samplesList.temp <- coda::as.mcmc.list(lapply(samplesList.temp, function(x){coda::as.mcmc(as.matrix(x))}))
 
           if (length(chains.to.remove)>0)
           {samplesList.temp<-coda::as.mcmc.list(samplesList.temp[-chains.to.remove])}
@@ -2725,7 +2762,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
       }
 
       if (!control.MCMC$parallelize)
-      {WAIC.results<-lapply (1:length(control.MCMC$WAIC.control),function(i)
+      {WAIC.results<-lapply (chains.to.update[1:length(control.MCMC$WAIC.control)],function(i)
       {
         if (length(control$seed)>0)
         {set.seed(control$seed+i+(Ncycles+1)*Nchains)}
@@ -2754,15 +2791,13 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
           }
         })
       } else {
-        message("      Running ", Nchains, " chains in parallel for WAIC calculation...")
-        parallel::clusterExport(cl, c("Ncycles","niter", "thin", "control","control.MCMC","resetMV.temporary","mvSamples.previous"),envir=environment())
-        WAIC.results <- parallel::clusterEvalQ(cl, {
+        message("      Running ", Nchains.updated, " chains in parallel for WAIC calculation...")
+        parallel::clusterExport(cl, c("chains.to.update","Ncycles","niter", "thin", "control","control.MCMC","resetMV.temporary","mvSamples.previous"),envir=environment())
+        WAIC.results <- parallel::clusterEvalQ(cl[chains.to.update[1:length(control.MCMC$WAIC.control)]], {
           #if (length(control$seed)>0)
           #{set.seed(control$seed+clusterNumber+(Ncycles+1)*Nchains)}
           #change 1: added resetMV in the following:
-          if (clusterNumber<=length(control.MCMC$WAIC.control))
-          {
-            if (!control.MCMC$APT)
+             if (!control.MCMC$APT)
               {
                 if (as.logical(max(control.MCMC$resetMV,resetMV.temporary))|(control.MCMC$WAIC.Nsamples>mvSamples.previous))
                   {
@@ -2785,7 +2820,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                 return(list(WAIC=CModelMCMC[[i]]$calculateWAIC()))
 
 
-              }}
+              }
 
           gc(verbose = FALSE)
         })
@@ -2872,7 +2907,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
     if (converged)
     {result<-window(samplesList.temp[,indices.save],start=index.conv.temp,end=size.samplesList.temp)} else
-    {result<-samplesList.temp[,indices.save]}
+    {result<-samplesList.temp[,indices.save,drop=FALSE]}
   }) ## END: current.CPU.time<-system.time({
   CPUtime.btadjust<-CPUtime.btadjust+current.CPU.time[1]+current.CPU.time[2]+ifelse(is.na(current.CPU.time[4]),0, current.CPU.time[4])+ifelse(is.na(current.CPU.time[5]),0, current.CPU.time[5])
   childCPUtime.btadjust<-childCPUtime.btadjust+current.CPU.time[4]+current.CPU.time[5]
@@ -2880,6 +2915,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
   units(total.duration)<-"secs"
 
   final.diags<-if (converged){index.conv.local<-indices.samplesList[index.conv.temp];conveff_final(window(samplesList.temp,start=index.conv.temp,end=size.samplesList.temp),indices.conv,control$conveff.final.allparams,control$print.diagnostics)} else {index.conv.local<-indices.samplesList[index.conv.temp];conveff_final(window(samplesList.temp),indices.conv,control$conveff.final.allparams,control$print.diagnostics)}
+
   original.atrributes<-list(call.params=list(summarized.data= {if(!is.null(data)&!control$save.data) {summarize.data(data)} else {NULL} },
                                              summarized.consts= {if(!is.null(constants)&!control$save.data) {summarize.data(constants)} else {NULL} },
                                              data= {if(!is.null(data)&control$save.data) {data} else {if(!is.null(data)) {"data only summarized; see summarized.data component"} else {NULL} }},
@@ -2893,7 +2929,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                                              neff.min=neff.min,neff.med=neff.med,neff.mean=neff.mean,
                                              conv.max=conv.max,conv.med=conv.med,conv.mean=conv.mean,
                                              control=control,control.MCMC=control.MCMC),
-                            final.params=list(converged=converged,neffs.reached=neffs.reached,final.Nchains=Nchains.updated,burnin=nburnin.min0+ifelse((index.conv==1&converged)|!converged,0,sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)])),thin=thin,niter.tot=niter.tot,
+                            final.params=list(converged=converged,neffs.reached=neffs.reached,final.Nchains=Nchains.updated,removed.chains=chains.to.remove,burnin=nburnin.min0+ifelse((index.conv==1&converged)|!converged,0,sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)])),thin=thin,niter.tot=niter.tot,
                                               Nvalues=unname(final.diags$params["Nvalues"]),neff.min=unname(final.diags$neff_synth["min"]),neff.median=unname(final.diags$neff_synth["median"]),
                                               WAIC=WAIC.results,
                                               extraResults=extraResults,
@@ -2921,9 +2957,8 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                             sessionInfo=sessionInfo(),
                             # removed because a priori useless outside runMCMC_btadjust							numIter.samplesList=numIter.samplesList,
                             warnings=c(NULL))
-  result<- coda::as.mcmc.list(lapply(result,function(x){y<-x; attributes(y)$mcpar<-c(original.atrributes$final.params$burnin,original.atrributes$final.params$burnin+original.atrributes$final.params$thin*(attributes(y)$dim[1]-1), original.atrributes$final.params$thin);y}))
+  result<- coda::as.mcmc.list(lapply(result,function(x){y<-coda::as.mcmc(as.matrix(x)); attributes(y)$mcpar<-c(original.atrributes$final.params$burnin,original.atrributes$final.params$burnin+original.atrributes$final.params$thin*(attributes(y)$dim[1]-1), original.atrributes$final.params$thin);y}))
   attributes(result)<-original.atrributes
-  result<- coda::as.mcmc.list(result)
 
   ## if the MCMC has not converged: risk that there are much too many values.
   if (!converged)
@@ -2932,7 +2967,10 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
   if (thin.end>1)
   {thin<-thin*thin.end
   result<-window.seq(result,thin=thin.end)
-  final.diags<-conveff_final(coda::as.mcmc.list(lapply(result,function(x){coda::as.mcmc(as.matrix(x))})),indices.conv,control$conveff.final.allparams,control$print.diagnostics)
+  samplesList.temp<-window.seq(samplesList.temp,thin=thin.end)
+
+  final.diags<-conveff_final(coda::as.mcmc.list(lapply(samplesList.temp,function(x){coda::as.mcmc(as.matrix(x))})),indices.conv,control$conveff.final.allparams,control$print.diagnostics)
+
   new.atrributes<-list(call.params=list(summarized.data= {if(!is.null(data)&!control$save.data) {summarize.data(data)} else {NULL} },
                                         summarized.consts= {if(!is.null(constants)&!control$save.data) {summarize.data(constants)} else {NULL} },
                                         data= {if(!is.null(data)&control$save.data) {data} else {if(!is.null(data)) {"data only summarized; see summarized.data component"} else {NULL} }},
@@ -2946,7 +2984,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                                         neff.min=neff.min,neff.med=neff.med,neff.mean=neff.mean,
                                         conv.max=conv.max,conv.med=conv.med,conv.mean=conv.mean,
                                         control=control,control.MCMC=control.MCMC),
-                       final.params=list(converged=converged,neffs.reached=neffs.reached,final.Nchains=Nchains.updated,burnin=nburnin.min0+ifelse((index.conv==1&converged)|!converged,0,sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)])),thin=thin,niter.tot=niter.tot,
+                       final.params=list(converged=converged,neffs.reached=neffs.reached,final.Nchains=Nchains.updated,removed.chains=chains.to.remove,burnin=nburnin.min0+ifelse((index.conv==1&converged)|!converged,0,sum(numIter.samplesList[1:ifelse(converged,index.conv-1,size.samplesList)])),thin=thin,niter.tot=niter.tot,
                                          Nvalues=unname(final.diags$params["Nvalues"]),neff.min=unname(final.diags$neff_synth["min"]),neff.median=unname(final.diags$neff_synth["median"]),
                                          WAIC=WAIC.results,
                                          extraResults=extraResults,

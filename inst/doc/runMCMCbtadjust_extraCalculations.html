@@ -142,17 +142,17 @@ section.footnotes::before {
 <div class="frontmatter">
 <div class="title"><h1>How to perform extra (to MCMC fitting) calculus using runMCMCbtadjust: with a focus on the possibilities offered by Nimble</h1></div>
 <div class="author"><h2>Frédéric Gosselin</h2></div>
-<div class="date"><h3>2024-06-05</h3></div>
+<div class="date"><h3>2024-08-08</h3></div>
 </div>
 <div class="body">
 <h1 id="introduction">Introduction</h1>
-<p>This file is meant to present the possibilities of the function <code>runMCMC_btadjust</code> in the <code>runMCMCbtadjust</code> package to perform calculus at the end of MCMC fitting. This is offered by the component <code>extraCalculations</code> of <code>control.MCMC</code>. We here propose to calculate mode-type DIC as well as a sampled posterior GOF p-value at the end of the MCMC fit to give examples of the use of this component.</p>
+<p>This file is meant to present the possibilities of the function <code>runMCMC_btadjust</code> in the <code>runMCMCbtadjust</code> package to perform calculus at the end of MCMC fitting a priori only under Windows at present (cf. <a href="https://groups.google.com/g/nimble-users/c/MPpY4Y5NIgk">https://groups.google.com/g/nimble-users/c/MPpY4Y5NIgk</a>). This is offered by the component <code>extraCalculations</code> of <code>control.MCMC</code>. We here propose to calculate mode-type DIC as well as a sampled posterior GOF p-value at the end of the MCMC fit to give examples of the use of this component.</p>
 <p>We do it by using the possibilities of <code>NIMBLE</code> to do so. At present, <code>runMCMC_btadjust</code> also allows to run MCMC with <code>JAGS</code> or <code>greta</code>. Extra (i.e. post MCMC) calculations for <code>greta</code> are as easier to be performed after running <code>runMCMC_btadjust</code> than inside it, while I am not aware of such possibilities with <code>JAGS</code>: I therefore here present this possibility only for <code>NIMBLE</code>.</p>
 <p>To do these extra calculations, we will <strong>write R commands within an expression that take profit of objects already built within <code>runMCMC_btadjust</code></strong>. In particular, the <strong>current R Nimble model</strong> - obtained by the command <code>nimble::nimbleModel</code> command within <code>runMCMC_btadjust</code> - for the <code>i</code>-th chain can be referred to by <strong><code>Model[[i]]</code></strong> and its C counterpart - obtained by the command <code>nimble::compileNimble</code> command applied on <strong><code>Model[[i]]</code></strong> - by <strong><code>CModel[[i]]</code></strong> while the configured model - obtained by the command <code>nimble::configureMCMC</code> command within <code>runMCMC_btadjust</code> - for the <code>i</code>-th chain can be referred to by <code>ConfModel[[i]]</code> and the model ready to be run in terms of MCMC iterations is <code>CModelMCMC[[i]]</code> for the <code>i</code>-th chain. <strong>Note that the treatment of <code>i</code> in the above references will differ according to whether MCMC has been parallelized or not</strong>. We will therefore provide two examples: one without parallelization and one with.</p>
-<p><strong>One very important extra object is the mcmc.list object containing the samples after convergence and adequate thinning, called <code>samplesList.temp</code>.</strong></p>
+<p><strong>One very important extra object built within <code>runMCMC_btadjust</code> is the mcmc.list object containing the samples after convergence and adequate thinning, called <code>samplesList.temp</code>.</strong></p>
 <h1 id="mode-type-dic">Mode-type DIC</h1>
-<p>We will here calculate the mode-type Deviance Information Criterion (DIC) proposed by @Celeux2006651 to circumvent problems met with the classical version of the DIC (@Spiegelhalter2002583). This is done to show how to perform this extra calculation, not because we suspect a problem with classical DIC in this very simple model.</p>
-<p>We first provide an example of extra calculations on a model without using parallelization on a specific model. We start by presenting the simulated data as well as the associated model and then, come to coding extra-calculations in this model.</p>
+<p>We will here calculate the mode-type Deviance Information Criterion (DIC) proposed by @Celeux2006651 to circumvent problems met with the classical version of the DIC (@Spiegelhalter2002583). This is done to show how to perform this extra calculation, not because we suspect a problem with classical DIC in the very simple model we will use.</p>
+<p>We first provide an example of extra calculations on a specific model without using parallelization. We start by presenting the simulated data as well as the associated model and then, come to coding extra-calculations in this model.</p>
 <h2 id="mode-type-dic-without-parallelization">Mode-type DIC without parallelization</h2>
 <p>We will develop these on the very simple data and model used in one of our previous vignettes, that we first recall below: inspired from @Kery_2010, we model data of weights of 1,000 Pilgrim falcons (<em>Falco peregrinus</em>) simulated from a Gaussian distribution with mean 600 grams and standard error 30 grams:</p>
 <pre><code class="language-r">
@@ -268,7 +268,7 @@ params &lt;- c(&quot;population.mean&quot;, &quot;population.sd&quot;)
 #&gt; [1] &quot;MCMC has reached the required level of effective values.&quot;
 #&gt; [1] &quot;###################################################################################&quot;
 </code></pre>
-<p>This is now time to write the program for DIC calculations within this setting thanks to the <code>extraCalculations</code> component of <code>control.MCMC</code> in <code>runMCMCbtadjust</code>.</p>
+<p>This is now time to write the program for DIC calculations within this setting thanks to the <code>extraCalculations</code> component of <code>control.MCMC</code> in <code>runMCMC_btadjust</code>.</p>
 <p>Given that we want to do calculations of DIC - which is based on calculating the log probabilities of data - we will first <strong>need to ensure that all the statistical parameters necessary to calculate these probabilities are included in <code>samplesList.temp</code> by <code>runMCMC_btadjust</code></strong>: this is done by turning the component <strong><code>includeParentNodes</code></strong> of <code>control.MCMC</code> to TRUE. Note that this will not change the saved parameters nor the monitored parameters. If you wish to also save all these parameters - for example for calculations outside of <code>runMCMC_btadjust</code> , you should use component <code>saveParentNodes</code> of <code>control.MCMC</code>. If you wish to also monitor all these parameters, you should use component <code>monitorParentNodes</code> of <code>control.MCMC</code>.</p>
 <p>The second step will be to go through all the parameters in <strong><code>samplesList.temp</code></strong> , give them to the <code>NIMBLE</code> model as values of parameters, calculate the variables other than the data variables and then  calculate the log probabilities associated with data. Our first idea was to use commands $setInits and $calculate of <code>NIMBLE</code> models compiled in C (that can be referred to by <strong><code>CModel[[1]]</code></strong> ) to do so - we will here make the calculations with only the model of the first chain as this is equivalent to doing it with the models associated with the other chains. Yet, it turned out to be numerically very ineffective (cf. <a href="https://groups.google.com/g/nimble-users/c/4Mk03_RTzA8">https://groups.google.com/g/nimble-users/c/4Mk03_RTzA8</a>). Instead, we will need to go through the writing of a function for <code>NIMBLE</code> with the <code>nimbleFunction</code> methodology to do so efficiently, which accelerated calculus more than 600 times. For further information on <code>nimbleFunction</code>s, the reader is referred to the Nimble user guide, the Nimble web site: <a href="https://r-nimble.org/">https://r-nimble.org/</a> or the Nimble users mailing list.</p>
 <p>As a final add-on, we will add to the names of all the variables created in the expression the tag “.EC” for ExtraCalculations to ensure they will not erase other variables that are active in <code>runMCMC_btadjust</code>. Here is the code assigned in an expression to the object called <code>calculations.for.modalDIC</code>:</p>
@@ -302,11 +302,13 @@ calculations.for.modalDIC&lt;-expression(
     ClogProbCalcPrepared.EC &lt;- compileNimble(Model1.EC, logProbCalcPrepared.EC)
 
     
-    ## fourth, running through all the samples in a lapply function:
+    ## fourth, running through all the samples in a sapply function to obtain the logLikelihoods corresponding to each set of parameters:
     logLiks.EC&lt;-sapply(1:(dim(samples.List.matrix.EC)[1]),function(toto) 
       {
       ClogProbCalcPrepared.EC$logProbCalcPrepared.EC$run(samples.List.matrix.EC[toto,])
       })
+    ## fifth: calculating DICs and estimation of numbers of parameters:
+    
     #mode type DIC; cf. Celeux et al. 2006 Bayesian analysis
     DIC.mode.EC&lt;--4*mean(logLiks.EC)+2*max(logLiks.EC)
     p.DIC.mode.EC&lt;--2*mean(logLiks.EC)+2*max(logLiks.EC)
@@ -472,7 +474,7 @@ calculations.for.modalDIC.parallel&lt;-expression(
       Model1.EC&lt;-Model[[1]]
       names.samples.EC&lt;-dimnames(samples.to.treat.EC)[[2]]
     
-        ## third preparing the names of variables to calculate on:
+      ## third preparing the names of variables to calculate on:
       varNames.EC&lt;-CModel[[1]]$getVarNames()
       DatavarNames.EC&lt;-names(data)
       notDatavarNames.EC&lt;-setdiff(varNames.EC,DatavarNames.EC)
@@ -490,7 +492,7 @@ calculations.for.modalDIC.parallel&lt;-expression(
     logProbCalcPrepared.EC &lt;- logProbCalc.EC(Model1.EC, names.samples.EC, notDatavarNames.EC, DatavarNames.EC)
     ClogProbCalcPrepared.EC &lt;- compileNimble(Model1.EC, logProbCalcPrepared.EC)
 
-      
+      ## fifth, running through all the samples in a sapply function to obtain the logLikelihoods corresponding to each set of parameters:
           logLiks&lt;-sapply(1:(dim(samples.to.treat.EC)[1]),function(toto) 
       {
       ClogProbCalcPrepared.EC$logProbCalcPrepared.EC$run(samples.to.treat.EC[toto,])
@@ -501,6 +503,9 @@ calculations.for.modalDIC.parallel&lt;-expression(
         })
     
     logLiks.EC&lt;-unlist(out1)
+    
+    
+    ## sixth: calculating DICs and estimation of numbers of parameters - outside of clusters for the first type of DIC and having to go back yo one cluster - here taken as the first - to do the calculation of logLikelihood on the mean of parameters as required by the classical formula of DIC:
     
     #mode type DIC; cf. Celeux et al. 2006 Bayesian analysis
     DIC.mode.EC&lt;--4*mean(logLiks.EC)+2*max(logLiks.EC)
@@ -573,12 +578,12 @@ attributes(out.mcmc.X)$final.params$extra
 </code></pre>
 <p>Results of both methods are also aligned with the number of parameters we know in this model - 3.</p>
 <p>These last DIC values are greater than the ones for the first, simple model, indicating a preference for the simpler model which is logical since it actually has a likelihood that is the same as the probabilistic model that generated the data.</p>
-<p>Mode-based DIC can be expected to provide better results that classical DIC in situations where the use of the mean of statistical parameters in classical DIC yields strange estimations of the number of parameters - esp. negative values. This can be due to the fact that distributions of parameters are not symmetric and /or multivariate distribution of parameters which is strongly non-linear. In this context, mode-based DIC makes more sense - I indeed used it in @Zilliox2014105 for this reason. Yet mode-based DIC will be dependent on how close the best of the sampled parameters is close to the mode. It could therefore make sense to calculate mode-based DIC with different numbers of samples and check the dependency of the DIC value from this number of parameters. A DIC value that stabilizes with the greatest number of parameters would indicate that we have a sufficiently high number of samples in our MCMC.</p>
+<p>Mode-based DIC can be expected to provide better results than classical DIC in situations where the use of the mean of statistical parameters in classical DIC yields strange estimations of the number of parameters - esp. negative values. This can be due to the fact that distributions of parameters are not symmetric and /or multivariate distribution of parameters which is strongly non-linear. In this context, mode-based DIC makes more sense - I indeed used it in @Zilliox2014105 for this reason. Yet mode-based DIC will be dependent on how close the best of the sampled parameters is close to the mode. It could therefore make sense to calculate mode-based DIC with different numbers of samples and check the dependency of the DIC value from this number of parameters. A DIC value that stabilizes with the greatest number of parameters would indicate that we have a sufficiently high number of samples in our MCMC.</p>
 <p>This first example showed the reader how to perform extra calculations with <code>extraCalculations</code> component of <code>control.MCMC</code> in <code>runMCMCbtadjust</code> , both in an unaparallelized and a parallelized setting - here to calculate mode-based DIC and classical DIC. The code is rather generic in the sense that it should apply to any model without changing the code. A key point for numerical efficiency is to go through a <code>nimbleFunction</code> for what concerns calculations on the <code>NIMBLE</code> model.</p>
 <h1 id="goodness-of-fit-p-value">Goodness-of-fit p-value</h1>
-<p>We will now give another illustration of use of the <code>extraCalculations</code> argument in <code>runMCMC_btadjust</code> to <strong>calculate goodness-of-fit (GOF) p-values</strong>. More precisely we will propose a first series of adaptable scripts to calculate <strong>sampled posterior GOF p-values</strong> (@Gosselin2011) to diagnose the adequacy of the fitted model relative to the data at hand. Indeed, the <code>extraCalculations</code> argument and <code>NIMBLE</code> possibilities proposes a natural way of doing these calculations without having to rewrite codes of the model within R. The very principle of sampled posterior GOF p-values is to base its calculation on a single set of parameters sampled from the posterior distribution - thus not having to repeatedly feed the model with parameter values as above.</p>
+<p>We will now give another illustration of use of the <code>extraCalculations</code> argument in <code>runMCMC_btadjust</code> to <strong>calculate goodness-of-fit (GOF) p-values</strong>. More precisely we will propose a first series of adaptable scripts to calculate <strong>sampled posterior GOF p-values</strong> (@Gosselin2011) to diagnose the adequacy of the fitted model relative to the data at hand. Indeed, based on <code>NIMBLE</code> possibilities, the <code>extraCalculations</code> argument constitutes a natural way of doing these calculations without having to rewrite codes of the model within R. The very principle of sampled posterior GOF p-values is to base its calculation on a single set of parameters sampled from the posterior distribution - thus not having to repeatedly feed the model with parameter values as above.</p>
 <p>There are many discrepancy measures that can be used to calculate these p-values (see @Herpigny201518 or @Godeau2020). We will here concentrate ourselves on diagnosing the distribution of data, using in part the notion of randomized quantile residuals (@Dunn1996236) and its extension to replicated data.</p>
-<p>The <strong>principle of sampled posterior GOF p-values</strong> is very simple: first, sample randomly a <em>unique</em> value of model parameters from the posterior distribution; second, simulate many values of replicated data based on the model with these parameter values; second, compare the discrepancy function evaluated on these replicated data values with the discrepancy function evaluated on the observed data; third, construct an empirical p-value synthesizing these comparisons. @Gosselin2011 showed that, whatever the discrepancy function, this p-value is expected to follow a uniform distribution between 0 and 1 when the statistical model is the model that was used to generate the data - i.e. is the “true” model - which is not the case with the more classical- posterior predictive p-value (@Robins20001143) - which is sometimes referred to as the “Bayesian p-value”.</p>
+<p>The <strong>principle of sampled posterior GOF p-values</strong> is very simple: first, sample randomly a <em>unique</em> value of model parameters from the posterior distribution; second, simulate many values of replicated data based on the model with this unique set of parameter values; second, compare the discrepancy function evaluated on these replicated data values with the discrepancy function evaluated on the observed data - still with this unique set of parameter values if the discrepancy function also depends on statistical parameters; third, construct an empirical p-value synthesizing these comparisons. @Gosselin2011 showed that, whatever the discrepancy function, this p-value is expected to follow a uniform distribution between 0 and 1 when the statistical model is the model that was used to generate the data - i.e. is the “true” model - which is not the case with the more classical- posterior predictive p-value (@Robins20001143) - which is sometimes referred to as the “Bayesian p-value”.</p>
 <p>We will exemplify the calculus of the sampled p-value on a very simple model</p>
 <pre><code class="language-r">
 set.seed(1)
@@ -619,7 +624,7 @@ params &lt;- c(&quot;log.population.mean&quot;,&quot;population.mean&quot;)
 
 </code></pre>
 <h2 id="sampled-posterior-gof-p-value-without-parallelization">Sampled posterior GOF p-value without parallelization</h2>
-<p>We now write the code for GOF p-values associated to different discrepancy functions: the index of dispersion of the data and the variance, skewness and kurtosis of the normalized random quantile residuals of data. Given that the statistical model fits well with the data generation model, these p-values should not be surprising, i.e. given the way we will construct them, they should not be very close to 0. To render the process numerically efficient we will use a <code>nimbleFunction</code> as done in the first example but adapt it to the calculation of GOF p-values. We also use the option <code>includeAllStochNodes=TRUE</code> to ensure that all the stochastic nodes are collected and therefore available in the object <code>samplesList.temp</code> so as to develop GOF p-values with all the required parameters. We will here develop the GOF p-values around the data <code>y</code>. This is one of the part of the code that will have to be tailored to each case; it is possible that multiple objects are used for GOF p-values. The other part that is to be adapted to each case is the choice of the discrepancy functions used. Sections of the code that have to be adapted to each case study are marked with the tag <code>### TO BE ADAPTED TO THE CASE AT HAND</code>.</p>
+<p>We now write the code for GOF p-values associated to different discrepancy functions: the index of dispersion of the data and the variance, skewness and kurtosis of the normalized random quantile residuals of data. Given that the statistical model fits well with the data generation model, these p-values should not be surprising, i.e. given the way we will construct them, they should not be very close to 0. To render the process numerically efficient we will use a <code>nimbleFunction</code> as done in the first example but adapt it to the calculation of GOF p-values. We also use the option <code>includeAllStochNodes=TRUE</code> of <code>control.MCMC</code> to ensure that all the stochastic nodes are collected and therefore available in the object <code>samplesList.temp</code> so as to develop GOF p-values with all the required parameters. We will here develop the GOF p-values around the data <code>y</code>. This is one of the part of the code that will have to be tailored to each case; it is possible that multiple objects are used for GOF p-values. The other part that is to be adapted to each case is the choice of the discrepancy functions used. Sections of the code that have to be adapted to each case study are marked with the tag <code>### TO BE ADAPTED TO THE CASE AT HAND</code>.</p>
 <pre><code class="language-r">
 
 calculations.for.GOFpvalues&lt;-expression(
@@ -689,13 +694,15 @@ calculations.for.GOFpvalues&lt;-expression(
       ### TO BE ADAPTED TO THE CASE AT HAND
     replicated.disc.EC&lt;-cbind(apply(ysim,2,function(x){var(x)/mean(x)}),t(apply(ynormsim,2,function(x){c(var(x),moments::skewness(x),moments::kurtosis(x))})))
     
+    ## fifth, doing similar calculations on observed data y:
       ### calculating normalized randomized quantile residual of y:
         ### TO BE ADAPTED TO THE CASE AT HAND
       ynorm.EC&lt;-qnorm(ppois(data$y-1,random.parameters.EC[&quot;population.mean&quot;])+runif(lengthy)*dpois(data$y,random.parameters.EC[&quot;population.mean&quot;]))
       ### calculating discrepancies on observed data sets
         ### TO BE ADAPTED TO THE CASE AT HAND
       observed.disc.EC&lt;-c(ID.y=var(data$y)/mean(data$y),var(ynorm.EC),moments::skewness(ynorm.EC),moments::kurtosis(ynorm.EC))
-    ### final calculations for producing the p-values
+    
+    ## sixth, final calculations for producing the p-values; cf. Gosselin (2011), Plos One
     sapply(1:dim(replicated.disc.EC)[2],function(x)
       {temp1&lt;-sum(observed.disc.EC[x]&lt;replicated.disc.EC[,x])
       temp2&lt;-sum(observed.disc.EC[x]==replicated.disc.EC[,x])
@@ -803,7 +810,7 @@ calculations.for.GOFpvalues.parallel&lt;-expression(
         ### TO BE ADAPTED TO THE CASE AT HAND
       lengthy&lt;-length(data$y)
     
-      ## writing and compiling the nimbleFunction we will use for part of GOF p-values calculations:
+      ## fifth, writing and compiling the nimbleFunction we will use for part of GOF p-values calculations:
     simulate_Ys.EC &lt;- nimbleFunction(
 		setup = function(model,names.ref.list) {
 		    ### TO BE ADAPTED TO THE CASE AT HAND
@@ -820,7 +827,7 @@ calculations.for.GOFpvalues.parallel&lt;-expression(
 		    ### TO BE ADAPTED TO THE CASE AT HAND
 		ysim&lt;-matrix(0,nrow=lengthy,ncol=nrep)
 		
-		  ## simulate the nrep values with Nimble using the includeData = TRUE option to be able to get it
+		  ## sixth, simulate the nrep values with Nimble using the includeData = TRUE option to be able to get it
 		for (i in 1:nrep)
   		{
 		      ### TO BE ADAPTED TO THE CASE AT HAND
@@ -842,7 +849,7 @@ calculations.for.GOFpvalues.parallel&lt;-expression(
     ## running the nimbleFunction
     ysim&lt;-Csimulate_YsPrepared.EC$simulate_YsPrepared.EC$run(random.parameters.EC,round(rep.EC/Nchains))
     
-    ### calculating normalized randomized quantile residual of y:
+    ### simulating normalized randomized quantiles of simulated data:
         ### TO BE ADAPTED TO THE CASE AT HAND
     ynormsim&lt;-sapply(1:round(rep.EC/Nchains),function(x){rnorm(lengthy)})
     ## calculating the discrepancies on replicated data sets.
@@ -857,7 +864,7 @@ calculations.for.GOFpvalues.parallel&lt;-expression(
    # replicated.disc.EC&lt;-list.as.matrixbisdim1(out1)
      replicated.disc.EC&lt;-as.matrix(coda::as.mcmc.list(lapply(out1,coda::as.mcmc)))
     
-    
+    ## seventh, doing similar calculations on observed data y:
       ### calculating normalized randomized quantile residual of y:
         ### TO BE ADAPTED TO THE CASE AT HAND
       ynorm.EC&lt;-qnorm(ppois(data$y-1,random.parameters.EC[&quot;population.mean&quot;])+runif(lengthy)*dpois(data$y,random.parameters.EC[&quot;population.mean&quot;]))
@@ -866,7 +873,7 @@ calculations.for.GOFpvalues.parallel&lt;-expression(
         ### TO BE ADAPTED TO THE CASE AT HAND
     observed.disc.EC&lt;-c(ID.y=var(data$y)/mean(data$y),var(ynorm.EC),moments::skewness(ynorm.EC),moments::kurtosis(ynorm.EC))
     
-    ### final calculations for producing the p-values
+    ### eighth, final calculations for producing the p-values
     sapply(1:dim(replicated.disc.EC)[2],function(x)
       {temp1&lt;-sum(observed.disc.EC[x]&lt;replicated.disc.EC[,x])
       temp2&lt;-sum(observed.disc.EC[x]==replicated.disc.EC[,x])
@@ -925,6 +932,7 @@ attributes(out.mcmc.GOF.NB.parallel)$final.params$extra
 <p>Of course, the calculations we propose to do through <code>extraCalculations</code> could also be done out of <code>runMCMC_btadjust</code>: the user would then need to rebuild the environment necessary to do it - especially the result of <code>nimbleModel</code> - which is not so difficult. Actually, I used to do these calculations both outside <code>runMCMC_btadjust</code> but also with non-<code>NIMBLE</code> functions - e.g. having to rewrite the log probabilities in R or C a second time. A first advantage of what I propose above is to use the <code>NIMBLE</code> objects to do so, first sparing some time to the analyst and second ensuring that the models/codes are well the ones that are wished and tha    t were used for model fitting. A second advantage of doing this inside <code>runMCMC_btadjust</code>, is in the case we use the <code>includeAllStochNodes=TRUE</code> option without saving all these nodes in the output - e.g. when these nodes are numerous:  then the approach proposed allows to spare some bytes in the ensuing RData files.</p>
 <h1 id="conclusion">Conclusion</h1>
 <p>We have here shown the capacities provided by the <code>extraCalculations</code> argument in <code>runMCMC_btadjust</code> which allows the analyst to use <code>runMCMC_btadjust</code> not only to fit a MCMC rigorously - which is its original aim - but also to provide other important information related to the model, such as information criteria or goodness-of-fit p-values. This enables us to provide a more rigorous use of MCMCs, first both to ensure convergence is reached and we have a sufficient number of quasi-independent samples from the posterior distribution but also to provide tools to compare the model with other models fit on the same data - information criteria - and to diagnose the coherence of the model with data - with GOF p-values.</p>
+<p>We insist that these possibilities have been developed and tested under Windows and that in some Linux environments these procedures might encounter problems that we hope we will solve soon (cf. <a href="https://groups.google.com/g/nimble-users/c/MPpY4Y5NIgk">https://groups.google.com/g/nimble-users/c/MPpY4Y5NIgk</a>).</p>
 <h1 id="acknowledgements">Acknowledgements</h1>
 <p>I wished to thank the Nimble users mailing list.</p>
 <p>The initial development of this package (up to version 1.1.1) was performed within the GAMBAS project funded by the French Agence Nationale pour la Recherche (ANR-18-CE02-0025) (cf. <a href="https://gambas.cirad.fr/">https://gambas.cirad.fr/</a>).</p>

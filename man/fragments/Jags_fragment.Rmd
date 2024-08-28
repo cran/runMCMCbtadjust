@@ -1,5 +1,5 @@
 
-## JAGS
+# JAGS
 We now turn to analyzing the same data with the same statistical model using `JAGS` with `runMCMC_btadjust()`. We rely on the data simulated above. In `JAGS`, we now put all the data in the same list:
 
 ```{r Jags Data}

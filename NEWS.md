@@ -1,3 +1,23 @@
+# runMCMCbtadjust 1.1.2
+
+Mainly technical bug fixes:
+- in section 1.5, added component to calculate indices.samplesList
+- replaced result by samplesList.temp in the final call to conveff_final function - to avoid undefined results
+- changed functions conveff_final & conveff so that they can work in case there is only one parameter
+- changed the default value of min.Nvalues in control to NULL which will then be replaced in the code by which will be replaced by neff.max
+- added chains.to.remove<-NULL in 1.2 to avoid errors in case if control$remove.fixedchains is FALSE
+- added affectation in samplesList in 2.2 in case Nimble, non parallelized and not APT - took the formula from within parallelized version; & added calculation of chains.to.update
+- rewritten the Nimble part of the 2.2 section so as to not update removed chains - their values are then replaced by those of the first updated chain for the sake of dimension coherence
+- correction in section 2.2 of allocation to samplesList in case Nimble and parallelize: the code was erroneous because did not take into account the nature out object out1
+- adding chains.to.remove in call to conveff_final
+- removing removed chains from final result/output in mcmc.list format and adding the info of which chains were removed in the final.params component called removed.chains - can be useful e.g. to relate with the Initial values
+- added drop=FALSE in many parts of the code for mcmc objects and added as.matrix after coda::as.mcmc so that they do not become vectors in case only one parametger is monitored-
+- minor clarity changhes in help (of control$conv.thorough.check, control$remove.fixedchains)
+- rather minor changes in vignettes
+
+
+---
+
 # runMCMCbtadjust 1.1.1
 
 Major revisions:

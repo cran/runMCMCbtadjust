@@ -66,8 +66,8 @@ findMCMC_strong_corrs<-function(mcmcList, corrMethod="pearson",minCorr=0.3,names
 
   ##0-checkings
 
-  if (!coda::is.mcmc.list(mcmcList))
-  {stop("The mcmcList argument is not a mcmc.list")}
+  if (!coda::is.mcmc.list(mcmcList)&!is.matrix(mcmcList))
+  {stop("The mcmcList argument is not a mcmc.list or a matrix")}
 
   if (length(corrMethod)!=1)
   {stop(paste0("The corrMethod argument should be of length 1. Is of length ",length(corrMethod)))}
@@ -95,7 +95,10 @@ findMCMC_strong_corrs<-function(mcmcList, corrMethod="pearson",minCorr=0.3,names
     }
   #
   ##1-transforming mcmcList to a matrix
-  Tablein<-as.matrix(mcmcList)
+  if (!is.matrix(mcmcList))
+    {Tablein<-as.matrix(mcmcList)}
+  else
+    {Tablein<-mcmcList}
 
   ##2-removing parameters if namesToRemove specified
   if (!is.null(namesToRemove))

@@ -1,7 +1,7 @@
 
 # Adaptive parallel tempering
 
-Our final try in terms of Nimble samplers will be the Adaptive Parallel Tempering (@Miasojedow2013649) provided by the `nimbleAPT` library. This is also a type of sampler that can help adapt tricky situations, especially multiple local maxima (or near-maxima) of the log posterior density. This is however unsure turning to APT by itself will be able to treat the correlation issue we have to deal with. The code to turn to APT is rather simple - and here we do not have to change the sampler as it is already included in the component `APT=TRUE` of `control.MCMC` . An important characteristic of `nimbleAPT` is that all samplers should be within the APT family: it is not possible at present to mix APT and non-APT samplers for different parameters - we initially wished to remove the APT sampler from parameter `population.sd` and replace it by the traditional random walk one to be more comparable to the ones above which also kept the random walk sampler for `population.sd` but this turns out to be impossible.
+Our final try in terms of Nimble samplers will be the Adaptive Parallel Tempering (@Miasojedow2013649) provided by the `nimbleAPT` library. This is also a type of sampler that can help adapt tricky situations, especially multiple local maxima (or near-maxima) of the log posterior density. This is however unsure turning to APT by itself will be able to treat the correlation issue we have to deal with. The code to turn to APT is rather simple - and here we do not have to change the sampler as it is already included in the component `APT=TRUE` of `control.MCMC` . An important characteristic of `nimbleAPT` is that samplers for all parameters should be within the APT family: it is not possible at present to mix APT and non-APT samplers for different parameters - we initially wished to remove the APT sampler from parameter `population.sd` and replace it by the traditional random walk one to be more comparable to the ones above which also kept the random walk sampler for `population.sd` but this turned out to be impossible.
 
 ```{r Nimble second run, with APT, cache=FALSE}
 
@@ -62,7 +62,9 @@ Summaries are fine in this case in the sense that the true parameters are within
 Let us now compare the different above models in terms of their rapidly analyzed performances (convergence, reaching the number of effective values, duration...).
 
 ```{r Nimble-Jags comparison efficiency without or with parallelization, echo=FALSE}
-table.res<-cbind(unlist(attributes(out.mcmc.base)$final.params[-c(10:12,19:31)]),unlist(attributes(out.mcmc.RWblock)$final.params[-c(10:12,19:31)]),unlist(attributes(out.mcmc.AFslice)$final.params[-c(10:12,19:31)]),unlist(attributes(out.mcmc.HMC)$final.params[-c(10:12,19:31)]),unlist(attributes(out.mcmc.APT)$final.params[-c(10:12,19:31)]),unlist(attributes(out.mcmc.blockAPT)$final.params[-c(10:12,19:31)]))
+
+names_components_to_display<-c("converged","neffs.reached","final.Nchains","burnin","thin","niter.tot","Nvalues","neff.min","neff.median","duration","duration.MCMC.preparation","duration.MCMC.transient","duration.MCMC.asymptotic","duration.MCMC.after")
+table.res<-cbind(unlist(attributes(out.mcmc.base)$final.params[names_components_to_display]),unlist(attributes(out.mcmc.RWblock)$final.params[names_components_to_display]),unlist(attributes(out.mcmc.AFslice)$final.params[names_components_to_display]),unlist(attributes(out.mcmc.HMC)$final.params[names_components_to_display]),unlist(attributes(out.mcmc.APT)$final.params[names_components_to_display]),unlist(attributes(out.mcmc.blockAPT)$final.params[names_components_to_display]))
 
 compar_MCMC_times<-format(table.res,digits=4,scientific=TRUE)
 knitr::kable(compar_MCMC_times[1:(dim(compar_MCMC_times)[1]-1),],col.names=c("default","RW.block","Slice.block","HMC","APT","APT.block"),align="r",caption="Comparison of the efficiency of the different types of samplers:")

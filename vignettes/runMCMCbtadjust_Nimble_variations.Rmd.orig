@@ -8,7 +8,7 @@ bibliography: references.bib
 csl: ecology.csl 
 vignette: >
   %\VignetteEngine{knitr::knitr}
-  %\VignetteIndexEntry{Nimble samplers}
+  %\VignetteIndexEntry{2- Nimble samplers}
   %\usepackage[UTF-8]{inputenc}
 ---
 
@@ -45,13 +45,13 @@ This file is meant to present the possibilities of the function `runMCMC_btadjus
 
 This function has four main advantages: (i) it saves the analyst's programming time since he/she does not have to repeatedly diagnose and re-run MCMCs until desired levels of convergence and number of effective values are reached; (ii) it allows a minimal, normalized quality control of MCMC outputs by allowing to meet pre-specified levels in terms of convergence and number of quasi-independent values; (iii) it may save computer's time when compared to cases where we have to restart the MCMC from the beginning if it has not converged or reached the specified number of effective values (as e.g. with `runMCMC` function in `NIMBLE`); and (iv) it can be applied with different MCMC R languages, with a stronger integration with `NIMBLE`.
 
-We will **here restrict our attention on the `NIMBLE` language and show a first axis of strong integration with `NIMBLE`**. Indeed, the last versions of the package `nimble` provide a still **improved flexibility for the user, especially in terms of MCMC samplers** since `nimble` allows the user to chose the MCMC sampler parameter by parameter, which is one of its great strength. We will demonstrate the way we can use these possibilities on a very simple, yet problematic statistical model. The simulated data we wish to model correspond to a simple linear model with a strongly uncentered explanatory variable - a situation that is known to pose problems with classical MCMCs due top strong correlation of the Intercept and slope parameters.
+We will **here restrict our attention on the `NIMBLE` language and show a first axis of strong integration with `NIMBLE`**. Indeed, the last versions of the package `nimble` provide a still **improved flexibility for the user, especially in terms of MCMC samplers** since `nimble` allows the user to choose the MCMC sampler parameter by parameter, which is one of its great strength. We will demonstrate the way we can use these possibilities on a very simple, yet problematic statistical model. The simulated data we wish to model correspond to a simple linear model with a strongly uncentered explanatory variable - a situation which is known to pose problems with classical MCMCs due top strong correlation of the Intercept and slope parameters.
 
 ```{r Simulating data}
 set.seed(1)
 nobs<-1000
 x<-rnorm(nobs)+100
-y<-rnorm(n=length(x),mean=x,sd=1)
+y<-y1000<-rnorm(n=length(x),mean=x,sd=1)
 
 ```
 

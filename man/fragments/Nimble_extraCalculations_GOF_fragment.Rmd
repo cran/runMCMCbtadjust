@@ -56,7 +56,7 @@ params <- c("log.population.mean","population.mean")
 
 ## Sampled posterior GOF p-value without parallelization
 
-We now write the code for GOF p-values associated to different discrepancy functions: the index of dispersion of the data and the variance, skewness and kurtosis of the normalized random quantile residuals of data. Given that the statistical model fits well with the data generation model, these p-values should not be surprising, i.e. given the way we will construct them, they should not be very close to 0. To render the process numerically efficient we will use a `nimbleFunction` as done in the first example but adapt it to the calculation of GOF p-values. We also use the option `includeAllStochNodes=TRUE` to ensure that all the stochastic nodes are collected and therefore available in the object `samplesList.temp` so as to develop GOF p-values with all the required parameters. We will here develop the GOF p-values around the data `y`. This is one of the part of the code that will have to be tailored to each case; it is possible that multiple objects are used for GOF p-values. The other part that is to be adapted to each case is the choice of the discrepancy functions used. Sections of the code that have to be adapted to each case study are marked with the tag `### TO BE ADAPTED TO THE CASE AT HAND`.
+We now write the code for GOF p-values associated to different discrepancy functions: the index of dispersion of the data and the variance, skewness and kurtosis of the normalized random quantile residuals of data. Given that the statistical model fits well with the data generation model, these p-values should not be surprising, i.e. given the way we will construct them, they should not be very close to 0. To render the process numerically efficient we will use a `nimbleFunction` as done in the first example but adapt it to the calculation of GOF p-values. We also use the option `includeAllStochNodes=TRUE` of `control.MCMC` to ensure that all the stochastic nodes are collected and therefore available in the object `samplesList.temp` so as to develop GOF p-values with all the required parameters. We will here develop the GOF p-values around the data `y`. This is one of the part of the code that will have to be tailored to each case; it is possible that multiple objects are used for GOF p-values. The other part that is to be adapted to each case is the choice of the discrepancy functions used. Sections of the code that have to be adapted to each case study are marked with the tag `### TO BE ADAPTED TO THE CASE AT HAND`.
 
 ```{r Nimble GOF calculation without parallelization, cache=FALSE}
 
@@ -129,13 +129,15 @@ calculations.for.GOFpvalues<-expression(
       ### TO BE ADAPTED TO THE CASE AT HAND
     replicated.disc.EC<-cbind(apply(ysim,2,function(x){var(x)/mean(x)}),t(apply(ynormsim,2,function(x){c(var(x),moments::skewness(x),moments::kurtosis(x))})))
     
+    ## fifth, doing similar calculations on observed data y:
       ### calculating normalized randomized quantile residual of y:
         ### TO BE ADAPTED TO THE CASE AT HAND
       ynorm.EC<-qnorm(ppois(data$y-1,random.parameters.EC["population.mean"])+runif(lengthy)*dpois(data$y,random.parameters.EC["population.mean"]))
       ### calculating discrepancies on observed data sets
         ### TO BE ADAPTED TO THE CASE AT HAND
       observed.disc.EC<-c(ID.y=var(data$y)/mean(data$y),var(ynorm.EC),moments::skewness(ynorm.EC),moments::kurtosis(ynorm.EC))
-    ### final calculations for producing the p-values
+    
+    ## sixth, final calculations for producing the p-values; cf. Gosselin (2011), Plos One
     sapply(1:dim(replicated.disc.EC)[2],function(x)
       {temp1<-sum(observed.disc.EC[x]<replicated.disc.EC[,x])
       temp2<-sum(observed.disc.EC[x]==replicated.disc.EC[,x])

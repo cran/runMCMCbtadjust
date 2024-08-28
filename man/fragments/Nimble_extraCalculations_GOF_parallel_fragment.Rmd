@@ -36,7 +36,7 @@ calculations.for.GOFpvalues.parallel<-expression(
         ### TO BE ADAPTED TO THE CASE AT HAND
       lengthy<-length(data$y)
     
-      ## writing and compiling the nimbleFunction we will use for part of GOF p-values calculations:
+      ## fifth, writing and compiling the nimbleFunction we will use for part of GOF p-values calculations:
     simulate_Ys.EC <- nimbleFunction(
 		setup = function(model,names.ref.list) {
 		    ### TO BE ADAPTED TO THE CASE AT HAND
@@ -53,7 +53,7 @@ calculations.for.GOFpvalues.parallel<-expression(
 		    ### TO BE ADAPTED TO THE CASE AT HAND
 		ysim<-matrix(0,nrow=lengthy,ncol=nrep)
 		
-		  ## simulate the nrep values with Nimble using the includeData = TRUE option to be able to get it
+		  ## sixth, simulate the nrep values with Nimble using the includeData = TRUE option to be able to get it
 		for (i in 1:nrep)
   		{
 		      ### TO BE ADAPTED TO THE CASE AT HAND
@@ -75,7 +75,7 @@ calculations.for.GOFpvalues.parallel<-expression(
     ## running the nimbleFunction
     ysim<-Csimulate_YsPrepared.EC$simulate_YsPrepared.EC$run(random.parameters.EC,round(rep.EC/Nchains))
     
-    ### calculating normalized randomized quantile residual of y:
+    ### simulating normalized randomized quantiles of simulated data:
         ### TO BE ADAPTED TO THE CASE AT HAND
     ynormsim<-sapply(1:round(rep.EC/Nchains),function(x){rnorm(lengthy)})
     ## calculating the discrepancies on replicated data sets.
@@ -90,7 +90,7 @@ calculations.for.GOFpvalues.parallel<-expression(
    # replicated.disc.EC<-list.as.matrixbisdim1(out1)
      replicated.disc.EC<-as.matrix(coda::as.mcmc.list(lapply(out1,coda::as.mcmc)))
     
-    
+    ## seventh, doing similar calculations on observed data y:
       ### calculating normalized randomized quantile residual of y:
         ### TO BE ADAPTED TO THE CASE AT HAND
       ynorm.EC<-qnorm(ppois(data$y-1,random.parameters.EC["population.mean"])+runif(lengthy)*dpois(data$y,random.parameters.EC["population.mean"]))
@@ -99,7 +99,7 @@ calculations.for.GOFpvalues.parallel<-expression(
         ### TO BE ADAPTED TO THE CASE AT HAND
     observed.disc.EC<-c(ID.y=var(data$y)/mean(data$y),var(ynorm.EC),moments::skewness(ynorm.EC),moments::kurtosis(ynorm.EC))
     
-    ### final calculations for producing the p-values
+    ### eighth, final calculations for producing the p-values
     sapply(1:dim(replicated.disc.EC)[2],function(x)
       {temp1<-sum(observed.disc.EC[x]<replicated.disc.EC[,x])
       temp2<-sum(observed.disc.EC[x]==replicated.disc.EC[,x])
