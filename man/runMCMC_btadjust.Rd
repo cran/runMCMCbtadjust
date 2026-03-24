@@ -44,23 +44,15 @@ runMCMC_btadjust(
     warmup = 1000, n.adapt = -1, RNG.names = c("base::Wichmann-Hill",
     "base::Marsaglia-Multicarry", "base::Super-Duper", "base::Mersenne-Twister"), n_cores
     = NULL, showCompilerOutput = FALSE, buildDerivs = FALSE, resetMV = FALSE, parallelize
-    = FALSE, parallelizeInitExpr = expression(if (MCMC_language == "Nimble") {
-    
-    library("nimble")
-     if (control.MCMC$APT) {
-         library("nimbleAPT")
-     }
-
-    } else {
-     NULL
- }), useConjugacy = FALSE, WAIC = FALSE, WAIC.Nsamples = 2000,
-    WAIC.control = list(online = TRUE, dataGroups = NULL, marginalizeNodes = NULL,
-    niterMarginal = 1000, convergenceSet = c(0.25, 0.5, 0.75), thin = TRUE, nburnin_extra
-    = 0), APT = FALSE, APT.NTemps = 7, APT.initTemps = NULL, APT.tuneTemps = c(10, 0.7),
-    APT.thinPrintTemps = expression(niter/5), includeAllStochNodes = FALSE,
-    monitorAllStochNodes = FALSE, saveAllStochNodes = FALSE, includeParentNodes = FALSE,
-    monitorParentNodes = FALSE, saveParentNodes = FALSE, 
-     extraCalculations = NULL)
+    = FALSE, parallelizeInitExpr = expression(NULL), useConjugacy = FALSE, WAIC = FALSE,
+    WAIC.Nsamples = 2000, WAIC.control = list(online = TRUE, dataGroups = NULL,
+    marginalizeNodes = NULL, niterMarginal = 1000, 
+     convergenceSet = c(0.25, 0.5,
+    0.75), thin = TRUE, nburnin_extra = 0), APT = FALSE, APT.NTemps = 7, APT.initTemps =
+    NULL, APT.tuneTemps = c(10, 0.7), APT.thinPrintTemps = expression(niter/5),
+    includeAllStochNodes = FALSE, monitorAllStochNodes = FALSE, saveAllStochNodes =
+    FALSE, includeParentNodes = FALSE, monitorParentNodes = FALSE, saveParentNodes =
+    FALSE, extraCalculations = NULL)
 )
 }
 \arguments{
@@ -137,7 +129,7 @@ The algorithm will not stop if the mean convergence diagnostic is not below this
  \item \code{thinmult.in.resetMV.temporary}: logical value: should the thin multiplier be taken into account in resetting parameter collection in case MCMC_language is "Nimble". Important mainly if control.MCMC$WAIC is TRUE. If TRUE, resetting will be more frequent, and WAIC calculation will be longer and more rigorous. Default to TRUE.
  \item \code{check.thinmult}: integer value between 1, 2 and 3: how should we check thinmult value after thinmult calculation? If 3, it is tested whether thinmult meets specific criteria -relative to convergence reaching (i.e. if no convergence, no change), number of effective value reaching conservation, minimum number of output values - min.Nvalues- and proportional reduction of number of effective values - and if not decreased values are tested with the same criteria. If 2, the same checkings are done except the one on proportional reduction of effective values. If 1, only the min.Nvalues criterion is taken into account. Default to 2. A value of 3 should produce shorter MCMCs, more values in the output, with more autocorrelation, than a value of 1.
  \item \code{decrease.thinmult.multiplier}: positive number below 1: when adapting the proposed multiplier of thin (thinmult), the multiplier of the current thinmult used to propose a new - smaller - thinmult value, provided thinmult is above decrease.thinmult.threshold. Default to 0.8.
- \item \code{decrease.thinmult.threshold}: positive number above 3: when adapting the proposed multiplier of thin (thinmult), the threshold value for thinmult below which decreases of proposed thinmult are substractions of one unit. Default to 20.
+ \item \code{decrease.thinmult.threshold}: positive number above 3: when adapting the proposed multiplier of thin (thinmult), the threshold value for thinmult below which decreases of proposed thinmult are subtractions of one unit. Default to 20.
  \item \code{only.final.adapt.thin}: logical value: should the thin parameter be adapted only at the end - so that during running of the MCMC we conserve a sufficient number of values - esp. with respect to min.Nvalues. Default to FALSE.
  \item \code{min.thinmult}: numeric value: minimum value of thin multiplier: if diagnostics suggest to multiply by less than this, this multiplication is not done. Default to 1.1.
  \item \code{force.niter.max}: logical value: if TRUE, the number of iterations is forced to go to niter.max - except for time.max constraints. Default to FALSE.
@@ -167,7 +159,7 @@ The algorithm will not stop if the mean convergence diagnostic is not below this
 \item \code{buildDerivs} (only for \code{MCMC_language=="Nimble"}): logical value indicating whether derivatives should be prepared when preparing Nimble model (will esp. allow to use HMC sampler). Default to FALSE.
 \item \code{resetMV} (only for \code{MCMC_language=="Nimble"}): logical value to be passed to $run specifying whether previous parameter samples should be reset or not. Default to FALSE to speed up WAIC calculations. You can turn it to TRUE if you wish to speed up runs of MCMC (cf. https://groups.google.com/g/nimble-users/c/RHH9Ybh7bSI/m/Su40lgNRBgAJ).
 \item \code{parallelize} (only for \code{MCMC_language=="Jags"} and \code{MCMC_language=="Nimble"}): logical value specifying whether the MCMC should be parallelized within the \code{runMCMC_btadjust} function with the \code{parallel} package (and for the moment default settings of this package). Default to FALSE. If TRUE, library \code{parallel} should be loaded. If TRUE and \code{control$time.max} is unspecified or infinite, each parallelized process will have a maximum duration of 30 days. In case \code{MCMC_language=="Greta"}, parallelization is managed directly by Greta.
-\item \code{parallelizeInitExpr} (only for \code{MCMC_language=="Jags"} and \code{MCMC_language=="Nimble"}): expression to add in each cluster created by parallelization. Default to \code{expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL})}.
+\item \code{parallelizeInitExpr} (only for \code{MCMC_language=="Jags"} and \code{MCMC_language=="Nimble"}): expression to add in each cluster created by parallelization. Default to \code{expression(NULL)}.
 \item \code{useConjugacy} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether Nimble should search for conjugate priors in the model. Default to FALSE. If TRUE, can render model configuration shorter (https://groups.google.com/g/nimble-users/c/a6DFCefYfjU/m/kqUWx9UXCgAJ) at the expense of not allowing any conjugate sampler
 \item \code{WAIC} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether WAIC should be calculated online within Nimble. Default to FALSE.
 \item \code{WAIC.Nsamples} (only for \code{MCMC_language=="Nimble"}): integer number: number of (nearly independent) samples of parameters in the posterior distribution over which to calculate WAIC. If WAIC is calculated on more than one chain, this number will be required for each of these chains. Default to 2000.

@@ -2,13 +2,13 @@
 title: "How to perform extra (to MCMC fitting) calculus using runMCMCbtadjust: with a focus on the possibilities offered by Nimble"
 author: "Frédéric Gosselin"
 email: "frederic.gosselin@inrae.fr"
-date: "2024-08-08"
+date: "2026-03-07"
 output: rmarkdown::html_vignette
 bibliography: references.bib
 csl: ecology.csl 
 vignette: >
   %\VignetteEngine{knitr::knitr}
-  %\VignetteIndexEntry{3- Extra calculations with Nimble}
+  %\VignetteIndexEntry{How to perform extra (to MCMC fitting) calculus using runMCMCbtadjust: with a focus on the possibilities offered by Nimble}
   %\usepackage[UTF-8]{inputenc}
 ---
 
@@ -163,7 +163,7 @@ out.mcmc<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = Model
 #> [1] "###################################################################################"
 #> [1] "Main MCMC sampling finished."
 #> [1] "###################################################################################"
-#> [1] "Final max raw multiplier of thin:  1.265"
+#> [1] "Final max raw multiplier of thin:  1.248"
 #> [1] "###################################################################################"
 #> [1] "Retained final multiplier of thin:  1"
 #> [1] "###################################################################################"
@@ -293,7 +293,7 @@ out.mcmc<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = Model
 #> [1] "###################################################################################"
 #> [1] "Main MCMC sampling finished."
 #> [1] "###################################################################################"
-#> [1] "Final max raw multiplier of thin:  1.265"
+#> [1] "Final max raw multiplier of thin:  1.248"
 #> [1] "###################################################################################"
 #> [1] "Retained final multiplier of thin:  1"
 #> [1] "###################################################################################"
@@ -308,16 +308,16 @@ out.mcmc<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = Model
 
 attributes(out.mcmc)$final.params$extra
 #> $DIC.mode
-#> [1] 9596.419
+#> [1] 9596.4
 #> 
 #> $p.DIC.mode
-#> [1] 1.936828
+#> [1] 1.92728
 #> 
 #> $DIC
-#> [1] 9596.418
+#> [1] 9596.398
 #> 
 #> $p.DIC
-#> [1] 1.935617
+#> [1] 1.925982
 ```
 
 This works well. Results of both methods - modal DIC and classical DIC - are very close and both estimate correctly the number of parameters - here 2.
@@ -460,14 +460,16 @@ out.mcmc.X<-runMCMC_btadjust(code=ModelCode.X, constants = ModelConsts.X, data =
     thin.min=1, thin.max=1000,
     conv.max=1.05, neff.min=1000,
     control=list(print.diagnostics=FALSE),
-    control.MCMC=list(includeParentNodes=TRUE,extraCalculations=calculations.for.modalDIC.parallel,parallelize=TRUE))
+    control.MCMC=list(includeParentNodes=TRUE,extraCalculations=calculations.for.modalDIC.parallel, parallelize=TRUE, parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL})))
 #> [1] "control$seed is NULL. Replaced by 1"
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
-#> [1] "Raw multiplier of thin:  4.738"
+#> [1] "Raw multiplier of thin:  5.011"
 #> [1] "###################################################################################"
 #> [1] "Testing multiplier of thin:  5 :"
-#> [1] "Retained multiplier of thin:  5 :"
+#> [1] "Testing multiplier of thin:  4 :"
+#> [1] "Testing multiplier of thin:  3 :"
+#> [1] "Retained multiplier of thin:  3 :"
 #> [1] "###################################################################################"
 #> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
 #> [1] "###################################################################################"
@@ -475,8 +477,9 @@ out.mcmc.X<-runMCMC_btadjust(code=ModelCode.X, constants = ModelConsts.X, data =
 #> [1] "###################################################################################"
 #> [1] "Main MCMC sampling finished."
 #> [1] "###################################################################################"
-#> [1] "Final max raw multiplier of thin:  1.222"
+#> [1] "Final max raw multiplier of thin:  1.613"
 #> [1] "###################################################################################"
+#> [1] "Testing final multiplier of thin:  2 :"
 #> [1] "Retained final multiplier of thin:  1"
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
@@ -490,16 +493,16 @@ out.mcmc.X<-runMCMC_btadjust(code=ModelCode.X, constants = ModelConsts.X, data =
 
 attributes(out.mcmc.X)$final.params$extra
 #> $DIC.mode
-#> [1] 9596.612
+#> [1] 9596.724
 #> 
 #> $p.DIC.mode
-#> [1] 3.037516
+#> [1] 3.085892
 #> 
 #> $DIC
-#> [1] 9596.599
+#> [1] 9596.724
 #> 
 #> $p.DIC
-#> [1] 3.02419
+#> [1] 3.086247
 ```
 
 Results of both methods are also aligned with the number of parameters we know in this model - 3. 
@@ -508,7 +511,7 @@ These last DIC values are greater than the ones for the first, simple model, ind
 
 Mode-based DIC can be expected to provide better results than classical DIC in situations where the use of the mean of statistical parameters in classical DIC yields strange estimations of the number of parameters - esp. negative values. This can be due to the fact that distributions of parameters are not symmetric and /or multivariate distribution of parameters which is strongly non-linear. In this context, mode-based DIC makes more sense - I indeed used it in @Zilliox2014105 for this reason. Yet mode-based DIC will be dependent on how close the best of the sampled parameters is close to the mode. It could therefore make sense to calculate mode-based DIC with different numbers of samples and check the dependency of the DIC value from this number of parameters. A DIC value that stabilizes with the greatest number of parameters would indicate that we have a sufficiently high number of samples in our MCMC.
 
-This first example showed the reader how to perform extra calculations with `extraCalculations` component of `control.MCMC` in `runMCMCbtadjust` , both in an unaparallelized and a parallelized setting - here to calculate mode-based DIC and classical DIC. The code is rather generic in the sense that it should apply to any model without changing the code. A key point for numerical efficiency is to go through a `nimbleFunction` for what concerns calculations on the `NIMBLE` model.
+This first example showed the reader how to perform extra calculations with `extraCalculations` component of `control.MCMC` in `runMCMCbtadjust` , both in an unparallelized and a parallelized setting - here to calculate mode-based DIC and classical DIC. The code is rather generic in the sense that it should apply to any model without changing the code. A key point for numerical efficiency is to go through a `nimbleFunction` for what concerns calculations on the `NIMBLE` model.
 
 
 # Goodness-of-fit p-value
@@ -866,14 +869,15 @@ out.mcmc.GOF.NB.parallel<-runMCMC_btadjust(code=ModelCode, constants = ModelCons
     thin.min=1, thin.max=1000,
     conv.max=1.05, neff.min=1000,
     control=list(print.diagnostics=FALSE),
-    control.MCMC=list(includeAllStochNodes=TRUE,parallelize=TRUE,extraCalculations=calculations.for.GOFpvalues.parallel))
+    control.MCMC=list(includeAllStochNodes=TRUE,parallelize=TRUE,parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL}), extraCalculations=calculations.for.GOFpvalues.parallel))
 #> [1] "control$seed is NULL. Replaced by 1"
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
-#> [1] "Raw multiplier of thin:  5.564"
+#> [1] "Raw multiplier of thin:  5.354"
 #> [1] "###################################################################################"
-#> [1] "Testing multiplier of thin:  6 :"
-#> [1] "Retained multiplier of thin:  6 :"
+#> [1] "Testing multiplier of thin:  5 :"
+#> [1] "Testing multiplier of thin:  4 :"
+#> [1] "Retained multiplier of thin:  4 :"
 #> [1] "###################################################################################"
 #> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
 #> [1] "###################################################################################"
@@ -881,8 +885,9 @@ out.mcmc.GOF.NB.parallel<-runMCMC_btadjust(code=ModelCode, constants = ModelCons
 #> [1] "###################################################################################"
 #> [1] "Main MCMC sampling finished."
 #> [1] "###################################################################################"
-#> [1] "Final max raw multiplier of thin:  1.322"
+#> [1] "Final max raw multiplier of thin:  1.728"
 #> [1] "###################################################################################"
+#> [1] "Testing final multiplier of thin:  2 :"
 #> [1] "Retained final multiplier of thin:  1"
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
@@ -895,10 +900,10 @@ out.mcmc.GOF.NB.parallel<-runMCMC_btadjust(code=ModelCode, constants = ModelCons
 #> [1] "###################################################################################"
 
 attributes(out.mcmc.GOF.NB.parallel)$final.params$extra
-#> [1] 0.0056607635 0.0003295884 0.0009109636 0.0019528279
+#> [1] 2.395529e-05 3.295884e-04 9.109636e-04 2.929962e-03
 ```
 
-As expected, the four p-values are very surprizing, since they are all less than 1% with only 1,000 replicates. This means that data do criticize the model from the point of view of the four discrepancies used, which all diagnose the probability distribution of data. This is logical since the data were actually generated from a different probability distribution than the one in the statistical model.
+As expected, the four p-values are very surprising, since they are all less than 1% with only 1,000 replicates. This means that data do criticize the model from the point of view of the four discrepancies used, which all diagnose the probability distribution of data. This is logical since the data were actually generated from a different probability distribution than the one in the statistical model.
 
 
 # Discussion

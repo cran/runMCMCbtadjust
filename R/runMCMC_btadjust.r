@@ -54,7 +54,7 @@
 #'   \item \code{thinmult.in.resetMV.temporary}: logical value: should the thin multiplier be taken into account in resetting parameter collection in case MCMC_language is "Nimble". Important mainly if control.MCMC$WAIC is TRUE. If TRUE, resetting will be more frequent, and WAIC calculation will be longer and more rigorous. Default to TRUE.
 #'   \item \code{check.thinmult}: integer value between 1, 2 and 3: how should we check thinmult value after thinmult calculation? If 3, it is tested whether thinmult meets specific criteria -relative to convergence reaching (i.e. if no convergence, no change), number of effective value reaching conservation, minimum number of output values - min.Nvalues- and proportional reduction of number of effective values - and if not decreased values are tested with the same criteria. If 2, the same checkings are done except the one on proportional reduction of effective values. If 1, only the min.Nvalues criterion is taken into account. Default to 2. A value of 3 should produce shorter MCMCs, more values in the output, with more autocorrelation, than a value of 1.
 #'   \item \code{decrease.thinmult.multiplier}: positive number below 1: when adapting the proposed multiplier of thin (thinmult), the multiplier of the current thinmult used to propose a new - smaller - thinmult value, provided thinmult is above decrease.thinmult.threshold. Default to 0.8.
-#'   \item \code{decrease.thinmult.threshold}: positive number above 3: when adapting the proposed multiplier of thin (thinmult), the threshold value for thinmult below which decreases of proposed thinmult are substractions of one unit. Default to 20.
+#'   \item \code{decrease.thinmult.threshold}: positive number above 3: when adapting the proposed multiplier of thin (thinmult), the threshold value for thinmult below which decreases of proposed thinmult are subtractions of one unit. Default to 20.
 #'   \item \code{only.final.adapt.thin}: logical value: should the thin parameter be adapted only at the end - so that during running of the MCMC we conserve a sufficient number of values - esp. with respect to min.Nvalues. Default to FALSE.
 #'   \item \code{min.thinmult}: numeric value: minimum value of thin multiplier: if diagnostics suggest to multiply by less than this, this multiplication is not done. Default to 1.1.
 #'   \item \code{force.niter.max}: logical value: if TRUE, the number of iterations is forced to go to niter.max - except for time.max constraints. Default to FALSE.
@@ -83,7 +83,7 @@
 #' \item \code{buildDerivs} (only for \code{MCMC_language=="Nimble"}): logical value indicating whether derivatives should be prepared when preparing Nimble model (will esp. allow to use HMC sampler). Default to FALSE.
 #' \item \code{resetMV} (only for \code{MCMC_language=="Nimble"}): logical value to be passed to $run specifying whether previous parameter samples should be reset or not. Default to FALSE to speed up WAIC calculations. You can turn it to TRUE if you wish to speed up runs of MCMC (cf. https://groups.google.com/g/nimble-users/c/RHH9Ybh7bSI/m/Su40lgNRBgAJ).
 #' \item \code{parallelize} (only for \code{MCMC_language=="Jags"} and \code{MCMC_language=="Nimble"}): logical value specifying whether the MCMC should be parallelized within the \code{runMCMC_btadjust} function with the \code{parallel} package (and for the moment default settings of this package). Default to FALSE. If TRUE, library \code{parallel} should be loaded. If TRUE and \code{control$time.max} is unspecified or infinite, each parallelized process will have a maximum duration of 30 days. In case \code{MCMC_language=="Greta"}, parallelization is managed directly by Greta.
-#' \item \code{parallelizeInitExpr} (only for \code{MCMC_language=="Jags"} and \code{MCMC_language=="Nimble"}): expression to add in each cluster created by parallelization. Default to \code{expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL})}.
+#' \item \code{parallelizeInitExpr} (only for \code{MCMC_language=="Jags"} and \code{MCMC_language=="Nimble"}): expression to add in each cluster created by parallelization. Default to \code{expression(NULL)}.
 #' \item \code{useConjugacy} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether Nimble should search for conjugate priors in the model. Default to FALSE. If TRUE, can render model configuration shorter (https://groups.google.com/g/nimble-users/c/a6DFCefYfjU/m/kqUWx9UXCgAJ) at the expense of not allowing any conjugate sampler
 #' \item \code{WAIC} (only for \code{MCMC_language=="Nimble"}): logical value specifying whether WAIC should be calculated online within Nimble. Default to FALSE.
 #' \item \code{WAIC.Nsamples} (only for \code{MCMC_language=="Nimble"}): integer number: number of (nearly independent) samples of parameters in the posterior distribution over which to calculate WAIC. If WAIC is calculated on more than one chain, this number will be required for each of these chains. Default to 2000.
@@ -219,7 +219,7 @@
 #' summary(out.mcmc.Coda)
 #' }
 #' @importFrom stats median rnorm qnorm quantile update var window
-#' @importFrom utils sessionInfo capture.output
+#' @importFrom utils sessionInfo capture.output packageVersion
 #' @export
 #'
 runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_language="Nimble",
@@ -235,7 +235,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
                                         min.thinmult=1.1, force.niter.max=FALSE, force.time.max=FALSE, time.max.turns.off.niter.max=FALSE, safemultiplier.Nvals=1.2,max.prop.decr.neff=0.1,round.thinmult=TRUE,thinmult.in.resetMV.temporary=TRUE,check.thinmult=2,decrease.thinmult.multiplier=0.8, decrease.thinmult.threshold=20,only.final.adapt.thin=FALSE,
                                         identifier.to.print="",print.diagnostics=FALSE,conv.thorough.check=FALSE,print.thinmult=TRUE,innerprint=FALSE,seed=NULL,remove.fixedchains=TRUE,check.installation=TRUE,save.data=FALSE,conveff.final.allparams=TRUE),
                            control.MCMC=list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=-1,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),
-                                             n_cores=NULL,showCompilerOutput=FALSE,buildDerivs=FALSE,resetMV=FALSE,parallelize=FALSE, parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library("nimble");if(control.MCMC$APT) {library("nimbleAPT")}} else {NULL}), useConjugacy=FALSE,
+                                             n_cores=NULL,showCompilerOutput=FALSE,buildDerivs=FALSE,resetMV=FALSE,parallelize=FALSE, parallelizeInitExpr= expression(NULL), useConjugacy=FALSE,
                                              WAIC=FALSE,WAIC.Nsamples=2000,
                                              WAIC.control=list(online=TRUE,dataGroups=NULL,marginalizeNodes=NULL,niterMarginal=1000,convergenceSet=c(0.25,0.5,0.75),thin=TRUE,nburnin_extra=0),
                                              APT=FALSE, APT.NTemps=7, APT.initTemps=NULL,APT.tuneTemps=c(10,0.7),APT.thinPrintTemps=expression(niter/5), includeAllStochNodes=FALSE, monitorAllStochNodes=FALSE, saveAllStochNodes=FALSE,includeParentNodes=FALSE,monitorParentNodes=FALSE, saveParentNodes=FALSE, extraCalculations=NULL))
@@ -686,7 +686,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
 
     ### putting the control.MCMC argument in the good format in case it is specified partially: same sequence as for control/control0:
-    control.MCMC0<-list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=-1,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),n_cores=NULL,showCompilerOutput=FALSE,buildDerivs=FALSE,resetMV=FALSE,parallelize=FALSE,parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library("nimble");if(control.MCMC$APT) {library("nimbleAPT")}} else {NULL}),useConjugacy=FALSE,WAIC=FALSE,WAIC.Nsamples=2000,
+    control.MCMC0<-list(confModel.expression.toadd=NULL,sampler=expression(hmc()),warmup=1000,n.adapt=-1,RNG.names=c("base::Wichmann-Hill", "base::Marsaglia-Multicarry", "base::Super-Duper","base::Mersenne-Twister"),n_cores=NULL,showCompilerOutput=FALSE,buildDerivs=FALSE,resetMV=FALSE,parallelize=FALSE,parallelizeInitExpr= expression(NULL),useConjugacy=FALSE,WAIC=FALSE,WAIC.Nsamples=2000,
                         WAIC.control=list(online=TRUE,dataGroups=NULL,marginalizeNodes=NULL,niterMarginal=1000,convergenceSet=c(0.25,0.5,0.75),thin=TRUE,nburnin_extra=0),
                         APT=FALSE, APT.NTemps=7, APT.initTemps=NULL,APT.tuneTemps=c(10,0.7),APT.thinPrintTemps=expression(niter/5),includeAllStochNodes=FALSE, monitorAllStochNodes=FALSE, saveAllStochNodes=FALSE, includeParentNodes=FALSE, monitorParentNodes=FALSE, saveParentNodes=FALSE, extraCalculations=NULL)
     if (length(setdiff(names(control.MCMC),names(control.MCMC0)))>0)
@@ -725,7 +725,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     ## checking adequacy of control$convtype
     if (length(control$convtype)>1) {print("control$convtype has more than one element. Reduced to its first element"); control$convtype<-control$convtype[[1]]}
     if (!is.character(control$convtype)) {stop("control$convtype is not of character type as it should be")}
-    if (!is.element(control$convtype, c("Gelman","Gelman_new","Geweke","Heidelberger"))) {stop("Parameter convtype in control argument should be equal either to \"Gelman\", \"Gelman_new\", \"Geweke\" or \"Heidelberger\": please change this parameter")}
+    if (!is.element(control$convtype, c("Gelman","Gelman_new","Geweke","Heidelberger"))) {stop("Parameter convtype in control argument should be equal either to 'Gelman', 'Gelman_new', 'Geweke' or 'Heidelberger': please change this parameter")}
 
     ## checking adequacy between convtype and number of MCMC chains
     if ((control$convtype=="Gelman"|control$convtype=="Gelman_new")&Nchains==1) {stop("Impossible to use the Gelman-Rubin convergence diagnostic with only one MCMC chain: please change Nchain or control$convtype")}
@@ -735,7 +735,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     ## checking adequacy of control$neff.method
     if (length(control$neff.method)>1) {print("control$neff.method has more than one element. Reduced to its first element"); control$neff.method<-control$neff.method[[1]]}
     if (!is.character(control$neff.method)) {stop("control$neff.method is not of character type as it should be")}
-    if (!is.element(control$neff.method, c("Stan","Coda"))) {stop("Parameter neff.method in control argument should be equal either to \"Stan\", or \"Coda\": please change this parameter")}
+    if (!is.element(control$neff.method, c("Stan","Coda"))) {stop("Parameter neff.method in control argument should be equal either to 'Stan', or 'Coda': please change this parameter")}
 
     if (length(control$check.installation)>1) {print("control$check.installation has more than one element. Reduced to its first element"); control$check.installation<-control$check.installation[[1]]}
     if (length(control$check.installation)==0) {stop("control$check.installation has zero length. Not possible")}
@@ -1049,7 +1049,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
     ## checking control.MCMC$WAIC.control and putting it in the right formaty: lengtht(control.MCMC$WAIC.control) is the number of WAIC methods to test
     if (length((control.MCMC$WAIC.control))==0 & control.MCMC$WAIC) {print("Since control.MCMC$WAIC.control is void, control.MCMC$WAIC turned to FALSE"); control.MCMC$WAIC<-FALSE}
-    if (is.null(names(control.MCMC$WAIC.control))) {control.MCMC$WAIC.control<-lapply(control.MCMC$WAIC.control,function(x){temp<-min(is.element(names(x),c("online", "dataGroups","marginalizeNodes","niterMarginal","convergenceSet","thin","nburnin_extra"))); if (temp!=1) {stop("components of control.MCMC$WAIC.control should have names among \"online\", \"dataGroups\",\"marginalizeNodes\",\"niterMarginal\",\"convergenceSet\",\"thin\",\"nburnin_extra\" which is not the case.")};x$online=TRUE;x$thin=TRUE;x$nburnin_extra=0;x})} else {temp<-min(is.element(names(control.MCMC$WAIC.control),c("online", "dataGroups","marginalizeNodes","niterMarginal","convergenceSet","thin","nburnin_extra"))); if (temp!=1) {print(names(control.MCMC$WAIC.control)); print(temp);stop("components of control.MCMC$WAIC.control shpuld have names among \"online\", \"dataGroups\",\"marginalizeNodes\",\"niterMarginal\",\"convergenceSet\",\"thin\",\"nburnin_extra\" which is not the case.")}; control.MCMC$WAIC.control$online=TRUE;control.MCMC$WAIC.control$thin=TRUE;control.MCMC$WAIC.control$nburnin_extra=0; control.MCMC$WAIC.control<-list(control.MCMC$WAIC.control)}
+    if (is.null(names(control.MCMC$WAIC.control))) {control.MCMC$WAIC.control<-lapply(control.MCMC$WAIC.control,function(x){temp<-min(is.element(names(x),c("online", "dataGroups","marginalizeNodes","niterMarginal","convergenceSet","thin","nburnin_extra"))); if (temp!=1) {stop("components of control.MCMC$WAIC.control should have names among 'online', 'dataGroups','marginalizeNodes','niterMarginal','convergenceSet','thin','nburnin_extra' which is not the case.")};x$online=TRUE;x$thin=TRUE;x$nburnin_extra=0;x})} else {temp<-min(is.element(names(control.MCMC$WAIC.control),c("online", "dataGroups","marginalizeNodes","niterMarginal","convergenceSet","thin","nburnin_extra"))); if (temp!=1) {print(names(control.MCMC$WAIC.control)); print(temp);stop("components of control.MCMC$WAIC.control shpuld have names among 'online', 'dataGroups','marginalizeNodes','niterMarginal','convergenceSet','thin','nburnin_extra' which is not the case.")}; control.MCMC$WAIC.control$online=TRUE;control.MCMC$WAIC.control$thin=TRUE;control.MCMC$WAIC.control$nburnin_extra=0; control.MCMC$WAIC.control<-list(control.MCMC$WAIC.control)}
     if (length((control.MCMC$WAIC.control))>Nchains) {print("control.MCMC$WAIC.control has more than Nchains=",Nchains," elements; truncated to the first Nchains elements"); control.MCMC$WAIC.control<-control.MCMC$WAIC.control[1:Nchains] }
     lapply(control.MCMC$WAIC.control,function(x){
       ## checking adequacy of online component
@@ -1088,34 +1088,34 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
     if (control$check.installation)
     {
-      if (MCMC_language=="Nimble" & !control.MCMC$parallelize & sum(search()=="package:nimble")==0) {stop("Since MCMC_language is \"Nimble\", library \"nimble\" should be loaded which is not the case")}
-      if ((MCMC_language=="Nimble"|MCMC_language=="Jags") & control.MCMC$parallelize & sum(search()=="package:parallel")==0) {stop("Since MCMC_language is \"Nimble\" or \"Jags\", and parallelization is required, library \"parallel\" should be loaded which is not the case")}
-      if (MCMC_language=="Nimble" & control.MCMC$APT & !control.MCMC$parallelize & sum(search()=="package:nimbleAPT")==0) {stop("Since MCMC_language is \"Nimble\" and APT is TRUE, library \"nimbleAPT\" should be loaded which is not the case")}
-      if (control$neff.method=="Stan" & nchar(system.file(package='rstan'))==0) {stop("Since parameter neff.method in control argument is \"Stan\", package \"rstan\" should be installed, which is not the case")}
-      if (control$convtype=="Gelman_new" & nchar(system.file(package='ggmcmc'))==0) {stop("Since parameter convtype in control argument is \"Stan\", package \"ggmcmc\" should be installed, which is not the case")}
-      if (MCMC_language=="Greta"& nchar(system.file(package='greta'))==0) {stop("Since MCMC_language is \"Greta\", package \"greta\" should be installed, which is not the case")}
-      if (is.element(MCMC_language,c("Nimble")) & control.MCMC$parallelize & nchar(system.file(package='parallel'))==0) {stop("Since MCMC_language is \"Nimble\", and parameter parallelize in control.MCMC is TRUE, package \"parallel\" should be installed, which is not the case")}
-      if (is.element(MCMC_language,c("Jags")) & control.MCMC$parallelize & nchar(system.file(package='parallel'))==0) {stop("Since MCMC_language is \"Jags\", and parameter parallelize in control.MCMC is TRUE, package \"parallel\" should be installed, which is not the case")}
-      if (MCMC_language=="Nimble" & control.MCMC$APT & nchar(system.file(package='nimbleAPT'))==0) {stop("Since MCMC_language is \"Nimble\", and parameter  APTin control.MCMC is TRUE, package \"nimbleAPT\" should be installed, which is not the case")}
-      if (MCMC_language=="Jags" & control.MCMC$parallelize & nchar(system.file(package='parallel'))==0) {stop("Since MCMC_language is \"Jags\", and parameter parallelize in control.MCMC is TRUE, package \"parallel\" should be installed, which is not the case")}
-      if (MCMC_language=="Greta"& nchar(system.file(package='R6'))==0) {stop("Since MCMC_language is \"Greta\", package \"R6\" should be installed, which is not the case")}
-      if (MCMC_language=="Greta"& nchar(system.file(package='tensorflow'))==0) {stop("Since MCMC_language is \"Greta\", package \"tensorflow\" should be installed, which is not the case")}
-      #if (MCMC_language=="Nimble" & control.MCMC$APT & control.MCMC$WAIC) {print("Since MCMC_language is \"Nimble\", and parameter APT in control.MCMC is TRUE, parameter WAIC in control.MCMC turned to FALSE since this methods seems no to work with APT"); control.MCMC$WAIC<-FALSE}
+      if (MCMC_language=="Nimble" & !control.MCMC$parallelize & sum(search()=="package:nimble")==0) {stop("Since MCMC_language is 'Nimble', library 'nimble' should be loaded which is not the case")}
+      if ((MCMC_language=="Nimble"|MCMC_language=="Jags") & control.MCMC$parallelize & sum(search()=="package:parallel")==0) {stop("Since MCMC_language is 'Nimble' or 'Jags', and parallelization is required, library 'parallel' should be loaded which is not the case")}
+      if (MCMC_language=="Nimble" & control.MCMC$APT & !control.MCMC$parallelize & sum(search()=="package:nimbleAPT")==0) {stop("Since MCMC_language is 'Nimble' and APT is TRUE, library 'nimbleAPT' should be loaded which is not the case")}
+      if (control$neff.method=="Stan" & nchar(system.file(package='rstan'))==0) {stop("Since parameter neff.method in control argument is 'Stan', package 'rstan' should be installed, which is not the case")}
+      if (control$convtype=="Gelman_new" & nchar(system.file(package='ggmcmc'))==0) {stop("Since parameter convtype in control argument is 'Stan', package 'ggmcmc' should be installed, which is not the case")}
+      if (MCMC_language=="Greta"& nchar(system.file(package='greta'))==0) {stop("Since MCMC_language is 'Greta', package 'greta' should be installed, which is not the case")}
+      if (is.element(MCMC_language,c("Nimble")) & control.MCMC$parallelize & nchar(system.file(package='parallel'))==0) {stop("Since MCMC_language is 'Nimble', and parameter parallelize in control.MCMC is TRUE, package 'parallel' should be installed, which is not the case")}
+      if (is.element(MCMC_language,c("Jags")) & control.MCMC$parallelize & nchar(system.file(package='parallel'))==0) {stop("Since MCMC_language is 'Jags', and parameter parallelize in control.MCMC is TRUE, package 'parallel' should be installed, which is not the case")}
+      if (MCMC_language=="Nimble" & control.MCMC$APT & nchar(system.file(package='nimbleAPT'))==0) {stop("Since MCMC_language is 'Nimble', and parameter  APTin control.MCMC is TRUE, package 'nimbleAPT' should be installed, which is not the case")}
+      if (MCMC_language=="Jags" & control.MCMC$parallelize & nchar(system.file(package='parallel'))==0) {stop("Since MCMC_language is 'Jags', and parameter parallelize in control.MCMC is TRUE, package 'parallel' should be installed, which is not the case")}
+      if (MCMC_language=="Greta"& nchar(system.file(package='R6'))==0) {stop("Since MCMC_language is 'Greta', package 'R6' should be installed, which is not the case")}
+      if (MCMC_language=="Greta"& nchar(system.file(package='tensorflow'))==0) {stop("Since MCMC_language is 'Greta', package 'tensorflow' should be installed, which is not the case")}
+      #if (MCMC_language=="Nimble" & control.MCMC$APT & control.MCMC$WAIC) {print("Since MCMC_language is 'Nimble', and parameter APT in control.MCMC is TRUE, parameter WAIC in control.MCMC turned to FALSE since this methods seems no to work with APT"); control.MCMC$WAIC<-FALSE}
 
       # this control has been temporarily removed since it takes some time and seems not to work within RMarkdown => dangerous
       # much as in: https://github.com/rstudio/rmarkdown/issues/1150
       # request made on greta forum: https://forum.greta-stats.org/t/request-for-a-modification-of-function-greta-sitrep/345
       #if (MCMC_language=="Greta") {test<-capture.output(greta::greta_sitrep(),type="message")
       #                           if (max(max(regexpr("greta is ready to use!",test))<=0))
-      #                             {stop("Since MCMC_language is \"Greta\", greta should be ready to use, which is not the case - call \"greta_sitrep()\" for more details")}
+      #                             {stop("Since MCMC_language is 'Greta', greta should be ready to use, which is not the case - call 'greta_sitrep()' for more details")}
       #                          }
-      if (MCMC_language=="Jags"& nchar(system.file(package='rjags'))==0) {stop("Since MCMC_language is \"Jags\", package \"rjags\" should be installed, which is not the case")}
-      if (MCMC_language=="Jags"& nchar(system.file(package='runjags'))==0) {stop("Since MCMC_language is \"Jags\", package \"runjags\" should be installed, which is not the case")}
+      if (MCMC_language=="Jags"& nchar(system.file(package='rjags'))==0) {stop("Since MCMC_language is 'Jags', package 'rjags' should be installed, which is not the case")}
+      if (MCMC_language=="Jags"& nchar(system.file(package='runjags'))==0) {stop("Since MCMC_language is 'Jags', package 'runjags' should be installed, which is not the case")}
       if (MCMC_language=="Jags") {suppressWarnings(temp<-runjags::testjags(silent=TRUE))
-        if(!(temp$JAGS.available&temp$JAGS.found&temp$JAGS.major==4)) {stop("Since MCMC_language is \"Jags\", program \"JAGS\" with version greater than 4.x.y should be installed, which is not the case")}
+        if(!(temp$JAGS.available&temp$JAGS.found&temp$JAGS.major==4)) {stop("Since MCMC_language is 'Jags', program 'JAGS' with version greater than 4.x.y should be installed, which is not the case")}
       }
 
-      if (MCMC_language=="Nimble"& nchar(system.file(package='nimble'))==0) {stop("Since MCMC_language is \"Nimble\", package \"nimble\" should be installed, which is not the case")}
+      if (MCMC_language=="Nimble"& nchar(system.file(package='nimble'))==0) {stop("Since MCMC_language is 'Nimble', package 'nimble' should be installed, which is not the case")}
     }
 
 
@@ -1123,7 +1123,7 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     ###0-1.4 modifications of parameters & checks that were brought through control or control.MCMC or checks of other parameters & potential messages:
     ########################################
 
-    if (MCMC_language=="Greta" & control.MCMC$parallelize) {print("Since MCMC_language is \"Greta\", and Greta already paralleizes, component parallelize of control.MCMC will have no effect")}
+    if (MCMC_language=="Greta" & control.MCMC$parallelize) {print("Since MCMC_language is 'Greta', and Greta already paralleizes, component parallelize of control.MCMC will have no effect")}
 
     ## if control.MCMC$saveAllStochNodes and !control.MCMC$includeAllStochNodes & MCMC_language=="Nimble": turn the second to TRUE, otherwise the first will not be implemented.
     if ( control.MCMC$saveAllStochNodes & !control.MCMC$includeAllStochNodes & MCMC_language=="Nimble") {control.MCMC$includeAllStochNodes<-TRUE; print("Component includeAllStochNodes of control.MCMC turned to TRUE because saveAllStochNodes is TRUE") }
@@ -1143,10 +1143,10 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
     if (length(params)>0) {if (mode(params)!="character") {stop("parameter params is not of character mode, but should be")}}
     if (length(params.conv)>0) {if (mode(params.conv)!="character") {stop("parameter params.conv is not of character mode, but should be")}}
     if (length(params.save)>0) {if (mode(params.save)!="character") {stop("parameter params.save is not of character mode, but should be")}}
-    if (((length(params)+length(params.save)+length(params.conv))==0)) {warning("be careful, no parameter supplied: could be problematic")}
+    if (((length(params)+length(params.save)+length(params.conv))==0)) {stop("be careful, no parameter supplied: could be problematic")}
 
     ## checking adequacy of MCMC_language
-    if (!is.element(MCMC_language,c("Nimble","Jags","Greta"))) {stop("MCMC_language should be either \"Nimble\", \"Jags\" or \"Greta\"; please respecify this parameter accordingly")}
+    if (!is.element(MCMC_language,c("Nimble","Jags","Greta"))) {stop("MCMC_language should be either 'Nimble', 'Jags' or 'Greta'; please respecify this parameter accordingly")}
 
     ## checking adequacy of Nchains parameter
     if (length(Nchains)>1) {print("Nchains has more than one element. Reduced to its first element"); Nchains<-Nchains[[1]]}
@@ -1251,17 +1251,49 @@ runMCMC_btadjust<-function(code=NULL,data=NULL,constants=NULL,model=NULL,MCMC_la
 
 
     ## checking adequacy of control$neff.method
-    if (control$neff.method!="Stan"&control$neff.method!="Coda") {stop("Parameter neff.method in control argument should be equal either to \"Stan\" or \"Coda\": please change this parameter")}
+    if (control$neff.method!="Stan"&control$neff.method!="Coda") {stop("Parameter neff.method in control argument should be equal either to 'Stan' or 'Coda': please change this parameter")}
 
 
 
     ## checking adequacy of arguments in case MCMC_language=="Nimble"
     if (MCMC_language=="Nimble"&(is.null(code)|is.null(data)|is.null(constants)))
     {stop("Either code or data or constants argument is null although it is required by Nimble to define the model and fit MCMC; please provide this missing parameter")}
+    
+    ### checking that nimble is an installed package
+    if (MCMC_language=="Nimble"& {toto<-try(packageVersion("nimble")); is.character(toto)&(regexpr("nimble",toto)>0|regexpr("Nimble",toto)>0)})
+    {stop("It is required that you have 'package:nimble' is installed. Please consider installing it: see: https://r-nimble.org/manual/cha-installing-nimble.html")}
+    
+    ### checking that nimble has a good version
+    if (MCMC_language=="Nimble"& {toto<-try(packageVersion("nimble")); toto=="1.4.0"})
+    {stop("It is required for runMCMCbtadjust to run to use a version of Nimble other than 1.4.0.",
+    "Indeed, version 1.4.0 of Nimble is incompatible runMCMCbtadjust because of reasons explained in https://github.com/nimble-dev/nimble/issues/1608.",
+    "Consider installing version 1.4.1 through version::install.versions('nimble', '1.4.1') - which itself requires the package version to be installed.")}
+    
+    if (MCMC_language=="Nimble"& !control.MCMC$parallelize & !is.element("package:nimble",search()))
+    {stop("It is required that you have 'package:nimble' in your search list for runMCMC_btadajust to run nicely. Consider doing library(nimble) or require(nimble). You should already have loaded it to build the argument code")}
+    
+	if (MCMC_language=="Nimble"& !control.MCMC$parallelize & !is.element("package:nimble",search()))
+    {stop("It is required that you have 'package:nimble' in your search list for runMCMC_btadajust to run nicely. Consider doing library(nimble) or require(nimble). You should already have loaded it to build the argument code")}
 
-    if (MCMC_language=="Nimble"&!is.element("package:nimble",search()))
-    {stop("It is required that you have \"package:nimble\" in your search list for runMCMC_btadajust to run nicely. Consider doing library(nimble) or require(nimble). You should already have loaded it to build the argument code")}
+	if (MCMC_language=="Nimble"& control.MCMC$parallelize & 
+		(length(intersect(gregexpr("library[(]",as.character(control.MCMC$parallelizeInitExpr))[[1]]+9,gregexpr("nimble[\"'])",as.character(control.MCMC$parallelizeInitExpr))[[1]]))==0)&
+		(length(intersect(gregexpr("library[(]",as.character(control.MCMC$parallelizeInitExpr))[[1]]+8,gregexpr("nimble)",as.character(control.MCMC$parallelizeInitExpr))[[1]]))==0)&
+		(length(intersect(gregexpr("require[(]",as.character(control.MCMC$parallelizeInitExpr))[[1]]+9,gregexpr("nimble[\"'])",as.character(control.MCMC$parallelizeInitExpr))[[1]]))==0)&
+		(length(intersect(gregexpr("require[(]",as.character(control.MCMC$parallelizeInitExpr))[[1]]+8,gregexpr("nimble)",as.character(control.MCMC$parallelizeInitExpr))[[1]]))==0))
+    {stop("You should load the nimble library in control.MCMC$parallelizeInitExpr. Condiser putting control.MCMC$parallelizeInitExpr equal to: expression(if(MCMC_language=='Nimble'){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL})")}
 
+	if (MCMC_language=="Nimble" & control.MCMC$APT & !control.MCMC$parallelize & sum(search()=="package:nimbleAPT")==0) {
+	stop("Since MCMC_language is 'Nimble' and APT is TRUE, library 'nimbleAPT' should be loaded which is not the case")}
+
+	if (MCMC_language=="Nimble" & control.MCMC$APT & control.MCMC$parallelize & 
+		(length(intersect(gregexpr("library[(]",as.character(control.MCMC$parallelizeInitExpr))[[1]]+9,gregexpr("nimbleAPT[\"'])",as.character(control.MCMC$parallelizeInitExpr))[[1]]))==0)&
+		(length(intersect(gregexpr("library[(]",as.character(control.MCMC$parallelizeInitExpr))[[1]]+8,gregexpr("nimbleAPT)",as.character(control.MCMC$parallelizeInitExpr))[[1]]))==0)&
+		(length(intersect(gregexpr("require[(]",as.character(control.MCMC$parallelizeInitExpr))[[1]]+9,gregexpr("nimbleAPT[\"'])",as.character(control.MCMC$parallelizeInitExpr))[[1]]))==0)&
+		(length(intersect(gregexpr("require[(]",as.character(control.MCMC$parallelizeInitExpr))[[1]]+8,gregexpr("nimbleAPT)",as.character(control.MCMC$parallelizeInitExpr))[[1]]))==0)) {
+	stop("You should load the nimbleAPT library in control.MCMC$parallelizeInitExpr. Condiser putting control.MCMC$parallelizeInitExpr equal to: expression(if(MCMC_language=='Nimble'){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL})")}
+
+    
+    
     ## checking adequacy of arguments in case MCMC_language=="Greta"
     if (MCMC_language=="Greta"&(is.null(model)))
     {stop("Model argument is null although it is required by Greta to define the model and fit MCMC; please provide this missing parameter")}

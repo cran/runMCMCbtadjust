@@ -134,7 +134,7 @@ out.mcmc.X<-runMCMC_btadjust(code=ModelCode.X, constants = ModelConsts.X, data =
     thin.min=1, thin.max=1000,
     conv.max=1.05, neff.min=1000,
     control=list(print.diagnostics=FALSE),
-    control.MCMC=list(includeParentNodes=TRUE,extraCalculations=calculations.for.modalDIC.parallel,parallelize=TRUE))
+    control.MCMC=list(includeParentNodes=TRUE,extraCalculations=calculations.for.modalDIC.parallel, parallelize=TRUE, parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL})))
 
 attributes(out.mcmc.X)$final.params$extra
 
@@ -146,4 +146,4 @@ Results of both methods are also aligned with the number of parameters we know i
 
 Mode-based DIC can be expected to provide better results than classical DIC in situations where the use of the mean of statistical parameters in classical DIC yields strange estimations of the number of parameters - esp. negative values. This can be due to the fact that distributions of parameters are not symmetric and /or multivariate distribution of parameters which is strongly non-linear. In this context, mode-based DIC makes more sense - I indeed used it in @Zilliox2014105 for this reason. Yet mode-based DIC will be dependent on how close the best of the sampled parameters is close to the mode. It could therefore make sense to calculate mode-based DIC with different numbers of samples and check the dependency of the DIC value from this number of parameters. A DIC value that stabilizes with the greatest number of parameters would indicate that we have a sufficiently high number of samples in our MCMC.
 
-This first example showed the reader how to perform extra calculations with `extraCalculations` component of `control.MCMC` in `runMCMCbtadjust` , both in an unaparallelized and a parallelized setting - here to calculate mode-based DIC and classical DIC. The code is rather generic in the sense that it should apply to any model without changing the code. A key point for numerical efficiency is to go through a `nimbleFunction` for what concerns calculations on the `NIMBLE` model.
+This first example showed the reader how to perform extra calculations with `extraCalculations` component of `control.MCMC` in `runMCMCbtadjust` , both in an unparallelized and a parallelized setting - here to calculate mode-based DIC and classical DIC. The code is rather generic in the sense that it should apply to any model without changing the code. A key point for numerical efficiency is to go through a `nimbleFunction` for what concerns calculations on the `NIMBLE` model.

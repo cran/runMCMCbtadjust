@@ -14,7 +14,7 @@ out.mcmc.APT<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = M
     thin.min=1, thin.max=Inf,
     conv.max=1.05, neff.min=1000,
     control=list(neff.method="Coda", time.max=120, print.diagnostics=FALSE),
-    control.MCMC=list(APT=TRUE, parallelize=TRUE, n.adapt=1000))
+    control.MCMC=list(APT=TRUE, parallelize=TRUE, parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL}), n.adapt=1000))
 ```
 
 This model did not converge nor allow us to reach the required number of effective values. The traceplot of the Slope parameter indeed indicates a difficulty of convergence, which is however less extreme that in the case of the above (untempered) RW block sampler (not shown here due to problems with CRAN; you can run the code in the FALSE condition below to see it).
@@ -42,7 +42,7 @@ out.mcmc.blockAPT<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, dat
     thin.min=1, thin.max=Inf,
     conv.max=1.05, neff.min=1000,
     control=list(neff.method="Coda", time.max=120, print.diagnostics=FALSE),
-    control.MCMC=list(confModel.expression.toadd=sampler.expression.toadd, APT=TRUE, parallelize=TRUE, n.adapt=1000))
+    control.MCMC=list(confModel.expression.toadd=sampler.expression.toadd, APT=TRUE, parallelize=TRUE, parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL}), n.adapt=1000))
 ```
 
 This one converges but does not allow to reach a sufficient number of effective values. The associated summary is given below:

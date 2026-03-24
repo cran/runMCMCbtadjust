@@ -6,7 +6,9 @@
 #' @param mcmcList R object of type mcmc.list that contains the MCMC output
 #' @param corrMethod  character: designates the kind of correlation calculated among "pearson" (the default, for linear relationships), "spearman" (for monotone relationships) or "hoeffd" (for general associations - i.e. dependencies - between parameters)
 #' @param minCorr  double, between 0 and 1: minimum level of (absolute) correlation to report.
-#' @param namesToRemove  R object (can be a vector, matrix, array, list...) all components of which must be of character type: will remove parameters whose names partially match one of tghese components.
+#' @param namesToRemove  R object (can be a vector, matrix, array, list...) all components of which must be of character type: will remove parameters whose names partially match one of these components.
+#'
+#' @return a data.frame of pairs of model parameters - in the first two columns- with their associated correlation in the MCMC - in the third column
 #'
 #'@details
 #' In case corrMethod equals "hoeffd", the hoeffd function in the Hmisc package will be used. This can be very slow. Therefore a warning message is printed in this case.

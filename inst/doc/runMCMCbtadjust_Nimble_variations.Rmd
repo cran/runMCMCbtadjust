@@ -2,15 +2,16 @@
 title: "Variations in using runMCMCbtadjust with Nimble: samplers"
 author: "Frédéric Gosselin"
 email: "frederic.gosselin@inrae.fr"
-date: "2024-08-09"
+date: "2026-03-07"
 output: rmarkdown::html_vignette
 bibliography: references.bib
 csl: ecology.csl 
 vignette: >
   %\VignetteEngine{knitr::knitr}
-  %\VignetteIndexEntry{2- Nimble samplers}
+  %\VignetteIndexEntry{Variations in using runMCMCbtadjust with Nimble: samplers}
   %\usepackage[UTF-8]{inputenc}
 ---
+
 
 
 
@@ -94,7 +95,7 @@ out.mcmc.base<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = 
     thin.min=1, thin.max=Inf,
     conv.max=1.05, neff.min=1000,
     control=list(neff.method="Coda", time.max=120, print.diagnostics=FALSE,print.thinmult=FALSE),
-    control.MCMC=list(parallelize=TRUE, n.adapt=1000))
+    control.MCMC=list(parallelize=TRUE, parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL}),n.adapt=1000))
 #> [1] "control$seed is NULL. Replaced by 1"
 #> [1] "###################################################################################"
 #> [1] "Case of niter update: Non convergence"
@@ -113,6 +114,15 @@ out.mcmc.base<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = 
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
 #> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
+#> [1] "###################################################################################"
+#> [1] "###################################################################################"
+#> [1] "Case of niter update: Non convergence"
+#> [1] "###################################################################################"
+#> [1] "###################################################################################"
+#> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
+#> [1] "###################################################################################"
+#> [1] "###################################################################################"
+#> [1] "Case of niter update: Non convergence"
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
 #> [1] "Case of niter update: Non convergence"
@@ -154,8 +164,8 @@ Table: Pairs of parameters that are strongly correlated
 
 | dimnames(Table)[[1]][Temp[, 1]]| dimnames(Table)[[1]][Temp[, 2]]| Table[Temp]|
 |-------------------------------:|-------------------------------:|-----------:|
-|                           Slope|                       Intercept|   -0.999862|
-|                       Intercept|                           Slope|   -0.999862|
+|                           Slope|                       Intercept|  -0.9999592|
+|                       Intercept|                           Slope|  -0.9999592|
 
 
 
@@ -180,8 +190,11 @@ out.mcmc.RWblock<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data
     thin.min=1, thin.max=Inf,
     conv.max=1.05, neff.min=1000,
     control=list(neff.method="Coda", time.max=120, print.diagnostics=FALSE),
-    control.MCMC=list(confModel.expression.toadd=sampler.expression.toadd, parallelize=TRUE, n.adapt=1000))
+    control.MCMC=list(confModel.expression.toadd=sampler.expression.toadd, parallelize=TRUE, parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL}), n.adapt=1000))
 #> [1] "control$seed is NULL. Replaced by 1"
+#> [1] "###################################################################################"
+#> [1] "Case of niter update: Non convergence"
+#> [1] "###################################################################################"
 #> [1] "###################################################################################"
 #> [1] "Case of niter update: Non convergence"
 #> [1] "###################################################################################"
@@ -228,7 +241,7 @@ if (TRUE) {traceplot(out.mcmc.RWblock[,"Slope"],main="Traceplot of Slope")}
 ![plot of chunk traceplot with Nimble second run, with RW_block](figure/traceplot with Nimble second run, with RW_block-1.png)
 
 
-Indeed, the two trajectories are completely separate showing a complete lack of convergence. Such is also the case for the Intercept parameter, but not for poluation.sd. This means that the  Random Walk block sampler did even worse than the original samplers. This is very likely due to a note/warning issued by Nimble but which we did not see due to the parallelization, that we can read without it. It reads:
+Indeed, the two trajectories are completely separate showing a complete lack of convergence. Such is also the case for the Intercept parameter, but not for population.sd. This means that the  Random Walk block sampler did even worse than the original samplers. This is very likely due to a note/warning issued by Nimble but which we did not see due to the parallelization, that we can read without it. It reads:
 
 ```         
 Assigning an RW_block sampler to nodes with very different scales can result in low MCMC efficiency.  If all nodes assigned to RW_block are not on a similar scale, we recommend providing an informed value for the "propCov" control list argument, or using the AFSS sampler instead.
@@ -250,17 +263,20 @@ out.mcmc.AFslice<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data
     thin.min=1, thin.max=Inf,
     conv.max=1.05, neff.min=1000,
     control=list(neff.method="Coda", time.max=120, print.diagnostics=FALSE),
-    control.MCMC=list(confModel.expression.toadd=sampler.expression.toadd, parallelize=TRUE, n.adapt=1000))
+    control.MCMC=list(confModel.expression.toadd=sampler.expression.toadd, parallelize=TRUE, parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL}), n.adapt=1000))
 #> [1] "control$seed is NULL. Replaced by 1"
 #> [1] "###################################################################################"
-#> [1] "Raw multiplier of thin:  9.497"
+#> [1] "Raw multiplier of thin:  8.632"
 #> [1] "###################################################################################"
 #> [1] "Testing multiplier of thin:  9 :"
 #> [1] "Testing multiplier of thin:  8 :"
 #> [1] "Testing multiplier of thin:  7 :"
 #> [1] "Testing multiplier of thin:  6 :"
 #> [1] "Testing multiplier of thin:  5 :"
-#> [1] "Retained multiplier of thin:  5 :"
+#> [1] "Testing multiplier of thin:  4 :"
+#> [1] "Testing multiplier of thin:  3 :"
+#> [1] "Testing multiplier of thin:  2 :"
+#> [1] "Retained multiplier of thin:  2 :"
 #> [1] "###################################################################################"
 #> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
 #> [1] "###################################################################################"
@@ -268,9 +284,10 @@ out.mcmc.AFslice<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data
 #> [1] "###################################################################################"
 #> [1] "Main MCMC sampling finished."
 #> [1] "###################################################################################"
-#> [1] "Final max raw multiplier of thin:  1.325"
+#> [1] "Final max raw multiplier of thin:  2.616"
 #> [1] "###################################################################################"
-#> [1] "Retained final multiplier of thin:  1"
+#> [1] "Testing final multiplier of thin:  3 :"
+#> [1] "Retained final multiplier of thin:  3"
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
 #> [1] "MCMC has reached the required level of convergence."
@@ -286,25 +303,25 @@ This now works very fine with both convergence and reaching the required number 
 
 summary(out.mcmc.AFslice)
 #> 
-#> Iterations = 104:5659
-#> Thinning interval = 5 
+#> Iterations = 101:5525
+#> Thinning interval = 6 
 #> Number of chains = 2 
-#> Sample size per chain = 1112 
+#> Sample size per chain = 905 
 #> 
 #> 1. Empirical mean and standard deviation for each variable,
 #>    plus standard error of the mean:
 #> 
-#>                   Mean      SD  Naive SE Time-series SE
-#> Intercept     -0.07618 3.26137 0.0691565      0.0727508
-#> Slope          1.00090 0.03260 0.0006912      0.0007272
-#> population.sd  1.02866 0.02331 0.0004943      0.0005692
+#>                 Mean      SD  Naive SE Time-series SE
+#> Intercept     0.0701 3.27826 0.0770556      0.0812963
+#> Slope         0.9994 0.03276 0.0007701      0.0008128
+#> population.sd 1.0295 0.02336 0.0005491      0.0006255
 #> 
 #> 2. Quantiles for each variable:
 #> 
 #>                  2.5%     25%     50%   75% 97.5%
-#> Intercept     -6.3407 -2.1744 -0.2191 2.113 6.514
-#> Slope          0.9349  0.9792  1.0025 1.022 1.063
-#> population.sd  0.9844  1.0131  1.0277 1.045 1.076
+#> Intercept     -6.1550 -2.1738 0.08901 2.264 6.636
+#> Slope          0.9340  0.9775 0.99940 1.022 1.062
+#> population.sd  0.9841  1.0139 1.02830 1.046 1.076
 ```
 
 In line with the above, I have recently shifted my practice of block sampling to AF_slice sampler which in my experience behaves nicely in such cases of correlated parameters.
@@ -338,57 +355,91 @@ out.mcmc.HMC<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = M
     thin.min=1, thin.max=Inf,
     conv.max=1.05, neff.min=1000,
     control=list(neff.method="Coda", time.max=120, print.diagnostics=FALSE),
-    control.MCMC=list(confModel.expression.toadd=sampler.expression.toadd, parallelizeInitExpr= newParallelizeInitExpr,buildDerivs=TRUE, parallelize=TRUE, n.adapt=1000))
+    control.MCMC=list(confModel.expression.toadd=sampler.expression.toadd, parallelizeInitExpr= newParallelizeInitExpr,buildDerivs=TRUE, parallelize=TRUE,parallelizeInitExpr= newParallelizeInitExpr, n.adapt=1000))
 #> [1] "control$seed is NULL. Replaced by 1"
 #> [1] "###################################################################################"
-#> [1] "Case of niter update: Non convergence"
+#> [1] "Raw multiplier of thin:  6.885"
+#> [1] "###################################################################################"
+#> [1] "Testing multiplier of thin:  7 :"
+#> [1] "Testing multiplier of thin:  6 :"
+#> [1] "Testing multiplier of thin:  5 :"
+#> [1] "Testing multiplier of thin:  4 :"
+#> [1] "Testing multiplier of thin:  3 :"
+#> [1] "Testing multiplier of thin:  2 :"
+#> [1] "Retained multiplier of thin:  1 :"
+#> [1] "###################################################################################"
+#> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
+#> [1] "###################################################################################"
+#> [1] "###################################################################################"
+#> [1] "Raw multiplier of thin:  8.267"
+#> [1] "###################################################################################"
+#> [1] "Testing multiplier of thin:  8 :"
+#> [1] "Testing multiplier of thin:  7 :"
+#> [1] "Testing multiplier of thin:  6 :"
+#> [1] "Testing multiplier of thin:  5 :"
+#> [1] "Testing multiplier of thin:  4 :"
+#> [1] "Testing multiplier of thin:  3 :"
+#> [1] "Testing multiplier of thin:  2 :"
+#> [1] "Retained multiplier of thin:  2 :"
+#> [1] "###################################################################################"
+#> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
 #> [1] "###################################################################################"
 #> [1] "Number of planned new iterations non-positive: end of MCMC cycles"
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
 #> [1] "Main MCMC sampling finished."
 #> [1] "###################################################################################"
-#> Warning in system.time({: The MCMC did not converge
+#> [1] "Final max raw multiplier of thin:  8.267"
+#> [1] "###################################################################################"
+#> [1] "Testing final multiplier of thin:  8 :"
+#> [1] "Testing final multiplier of thin:  7 :"
+#> [1] "Testing final multiplier of thin:  6 :"
+#> [1] "Testing final multiplier of thin:  5 :"
+#> [1] "Testing final multiplier of thin:  4 :"
+#> [1] "Testing final multiplier of thin:  3 :"
+#> [1] "Testing final multiplier of thin:  2 :"
+#> [1] "Retained final multiplier of thin:  1"
+#> [1] "###################################################################################"
 #> Warning in system.time({: The expected effective sample size was not reached
 #> [1] "###################################################################################"
-#> [1] "MCMC has NOT reached the required level of convergence."
+#> [1] "MCMC has reached the required level of convergence."
 #> [1] "###################################################################################"
 #> [1] "MCMC has NOT reached the required level of effective values."
 #> [1] "###################################################################################"
 ```
 
+With these adaptations, within two minutes, the Hamiltonian Monte Carlo sampler does not go very far; it converges but does not reach the required number of effective values. This is due to a longer time per iteration and a longer time of MCMC preparation than with other samplers. The associated summary is given below:
 
 
-With these adaptations, within two minutes, the Hamiltonian Monte Carlo sampler does not go very far; it does not converge and does not reach the required number of effective values. This is due to a longer time per iteration and a longer time of MCMC preparation than with other samplers. The associated summary is given below:
 
 
 
 ``` r
 summary(out.mcmc.HMC)
 #> 
-#> Iterations = 100:999
+#> Iterations = 352:1415
 #> Thinning interval = 1 
 #> Number of chains = 2 
-#> Sample size per chain = 900 
+#> Sample size per chain = 1064 
 #> 
 #> 1. Empirical mean and standard deviation for each variable,
 #>    plus standard error of the mean:
 #> 
-#>                 Mean      SD  Naive SE Time-series SE
-#> Intercept     0.2880 3.51863 0.0829349       0.252204
-#> Slope         0.9973 0.03518 0.0008291       0.002522
-#> population.sd 1.0270 0.02326 0.0005482       0.001527
+#>                  Mean      SD  Naive SE Time-series SE
+#> Intercept     -0.2073 3.27153 0.0709194       0.212671
+#> Slope          1.0022 0.03270 0.0007089       0.002124
+#> population.sd  1.0283 0.02279 0.0004940       0.001144
 #> 
 #> 2. Quantiles for each variable:
 #> 
-#>                  2.5%     25%    50%   75% 97.5%
-#> Intercept     -5.9043 -2.0825 0.1268 2.537 7.136
-#> Slope          0.9286  0.9748 0.9989 1.021 1.059
-#> population.sd  0.9830  1.0143 1.0253 1.043 1.072
+#>                  2.5%     25%     50%   75% 97.5%
+#> Intercept     -6.3483 -2.4632 -0.3973 1.859 6.676
+#> Slope          0.9333  0.9817  1.0039 1.025 1.063
+#> population.sd  0.9870  1.0121  1.0279 1.044 1.073
 
 effectiveSize(out.mcmc.HMC)
 #>     Intercept         Slope population.sd 
-#>      200.3512      200.0932      243.8469
+#>      257.4119      257.7739      410.8059
 ```
 
 
@@ -410,7 +461,7 @@ out.mcmc.APT<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = M
     thin.min=1, thin.max=Inf,
     conv.max=1.05, neff.min=1000,
     control=list(neff.method="Coda", time.max=120, print.diagnostics=FALSE),
-    control.MCMC=list(APT=TRUE, parallelize=TRUE, n.adapt=1000))
+    control.MCMC=list(APT=TRUE, parallelize=TRUE, parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL}), n.adapt=1000))
 #> [1] "control$seed is NULL. Replaced by 1"
 #> [1] "###################################################################################"
 #> [1] "Case of niter update: Non convergence"
@@ -425,20 +476,143 @@ out.mcmc.APT<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = M
 #> [1] "Case of niter update: Non convergence"
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
-#> [1] "Case of niter update: Non convergence"
+#> [1] "Raw multiplier of thin:  315.449"
+#> [1] "###################################################################################"
+#> [1] "Testing multiplier of thin:  315 :"
+#> [1] "Testing multiplier of thin:  252 :"
+#> [1] "Testing multiplier of thin:  201 :"
+#> [1] "Testing multiplier of thin:  160 :"
+#> [1] "Testing multiplier of thin:  128 :"
+#> [1] "Testing multiplier of thin:  102 :"
+#> [1] "Testing multiplier of thin:  81 :"
+#> [1] "Testing multiplier of thin:  64 :"
+#> [1] "Testing multiplier of thin:  51 :"
+#> [1] "Testing multiplier of thin:  40 :"
+#> [1] "Testing multiplier of thin:  32 :"
+#> [1] "Retained multiplier of thin:  32 :"
+#> [1] "###################################################################################"
+#> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
-#> [1] "Case of niter update: Non convergence"
+#> [1] "Raw multiplier of thin:  65.107"
+#> [1] "###################################################################################"
+#> [1] "Testing multiplier of thin:  65 :"
+#> [1] "Testing multiplier of thin:  52 :"
+#> [1] "Testing multiplier of thin:  41 :"
+#> [1] "Testing multiplier of thin:  32 :"
+#> [1] "Testing multiplier of thin:  25 :"
+#> [1] "Testing multiplier of thin:  20 :"
+#> [1] "Testing multiplier of thin:  19 :"
+#> [1] "Testing multiplier of thin:  18 :"
+#> [1] "Testing multiplier of thin:  17 :"
+#> [1] "Testing multiplier of thin:  16 :"
+#> [1] "Testing multiplier of thin:  15 :"
+#> [1] "Testing multiplier of thin:  14 :"
+#> [1] "Testing multiplier of thin:  13 :"
+#> [1] "Testing multiplier of thin:  12 :"
+#> [1] "Testing multiplier of thin:  11 :"
+#> [1] "Testing multiplier of thin:  10 :"
+#> [1] "Testing multiplier of thin:  9 :"
+#> [1] "Testing multiplier of thin:  8 :"
+#> [1] "Testing multiplier of thin:  7 :"
+#> [1] "Testing multiplier of thin:  6 :"
+#> [1] "Testing multiplier of thin:  5 :"
+#> [1] "Testing multiplier of thin:  4 :"
+#> [1] "Testing multiplier of thin:  3 :"
+#> [1] "Testing multiplier of thin:  2 :"
+#> [1] "Retained multiplier of thin:  2 :"
+#> [1] "###################################################################################"
+#> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
+#> [1] "###################################################################################"
+#> [1] "###################################################################################"
+#> [1] "Raw multiplier of thin:  27.292"
+#> [1] "###################################################################################"
+#> [1] "Testing multiplier of thin:  27 :"
+#> [1] "Testing multiplier of thin:  21 :"
+#> [1] "Testing multiplier of thin:  20 :"
+#> [1] "Testing multiplier of thin:  19 :"
+#> [1] "Testing multiplier of thin:  18 :"
+#> [1] "Testing multiplier of thin:  17 :"
+#> [1] "Testing multiplier of thin:  16 :"
+#> [1] "Testing multiplier of thin:  15 :"
+#> [1] "Testing multiplier of thin:  14 :"
+#> [1] "Testing multiplier of thin:  13 :"
+#> [1] "Testing multiplier of thin:  12 :"
+#> [1] "Testing multiplier of thin:  11 :"
+#> [1] "Testing multiplier of thin:  10 :"
+#> [1] "Testing multiplier of thin:  9 :"
+#> [1] "Testing multiplier of thin:  8 :"
+#> [1] "Testing multiplier of thin:  7 :"
+#> [1] "Testing multiplier of thin:  6 :"
+#> [1] "Testing multiplier of thin:  5 :"
+#> [1] "Testing multiplier of thin:  4 :"
+#> [1] "Testing multiplier of thin:  3 :"
+#> [1] "Testing multiplier of thin:  2 :"
+#> [1] "Retained multiplier of thin:  1 :"
+#> [1] "###################################################################################"
+#> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
+#> [1] "###################################################################################"
+#> [1] "###################################################################################"
+#> [1] "Raw multiplier of thin:  32.162"
+#> [1] "###################################################################################"
+#> [1] "Testing multiplier of thin:  32 :"
+#> [1] "Testing multiplier of thin:  25 :"
+#> [1] "Testing multiplier of thin:  20 :"
+#> [1] "Testing multiplier of thin:  19 :"
+#> [1] "Testing multiplier of thin:  18 :"
+#> [1] "Testing multiplier of thin:  17 :"
+#> [1] "Testing multiplier of thin:  16 :"
+#> [1] "Testing multiplier of thin:  15 :"
+#> [1] "Testing multiplier of thin:  14 :"
+#> [1] "Testing multiplier of thin:  13 :"
+#> [1] "Testing multiplier of thin:  12 :"
+#> [1] "Testing multiplier of thin:  11 :"
+#> [1] "Testing multiplier of thin:  10 :"
+#> [1] "Testing multiplier of thin:  9 :"
+#> [1] "Testing multiplier of thin:  8 :"
+#> [1] "Testing multiplier of thin:  7 :"
+#> [1] "Testing multiplier of thin:  6 :"
+#> [1] "Testing multiplier of thin:  5 :"
+#> [1] "Testing multiplier of thin:  4 :"
+#> [1] "Testing multiplier of thin:  3 :"
+#> [1] "Testing multiplier of thin:  2 :"
+#> [1] "Retained multiplier of thin:  1 :"
+#> [1] "###################################################################################"
+#> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
 #> [1] "###################################################################################"
 #> [1] "Number of planned new iterations non-positive: end of MCMC cycles"
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
 #> [1] "Main MCMC sampling finished."
 #> [1] "###################################################################################"
-#> Warning in system.time({: The MCMC did not converge
+#> [1] "Final max raw multiplier of thin:  32.162"
+#> [1] "###################################################################################"
+#> [1] "Testing final multiplier of thin:  32 :"
+#> [1] "Testing final multiplier of thin:  25 :"
+#> [1] "Testing final multiplier of thin:  20 :"
+#> [1] "Testing final multiplier of thin:  19 :"
+#> [1] "Testing final multiplier of thin:  18 :"
+#> [1] "Testing final multiplier of thin:  17 :"
+#> [1] "Testing final multiplier of thin:  16 :"
+#> [1] "Testing final multiplier of thin:  15 :"
+#> [1] "Testing final multiplier of thin:  14 :"
+#> [1] "Testing final multiplier of thin:  13 :"
+#> [1] "Testing final multiplier of thin:  12 :"
+#> [1] "Testing final multiplier of thin:  11 :"
+#> [1] "Testing final multiplier of thin:  10 :"
+#> [1] "Testing final multiplier of thin:  9 :"
+#> [1] "Testing final multiplier of thin:  8 :"
+#> [1] "Testing final multiplier of thin:  7 :"
+#> [1] "Testing final multiplier of thin:  6 :"
+#> [1] "Testing final multiplier of thin:  5 :"
+#> [1] "Testing final multiplier of thin:  4 :"
+#> [1] "Testing final multiplier of thin:  3 :"
+#> [1] "Testing final multiplier of thin:  2 :"
+#> [1] "Retained final multiplier of thin:  1"
+#> [1] "###################################################################################"
 #> Warning in system.time({: The expected effective sample size was not reached
 #> [1] "###################################################################################"
-#> [1] "MCMC has NOT reached the required level of convergence."
+#> [1] "MCMC has reached the required level of convergence."
 #> [1] "###################################################################################"
 #> [1] "MCMC has NOT reached the required level of effective values."
 #> [1] "###################################################################################"
@@ -470,7 +644,7 @@ out.mcmc.blockAPT<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, dat
     thin.min=1, thin.max=Inf,
     conv.max=1.05, neff.min=1000,
     control=list(neff.method="Coda", time.max=120, print.diagnostics=FALSE),
-    control.MCMC=list(confModel.expression.toadd=sampler.expression.toadd, APT=TRUE, parallelize=TRUE, n.adapt=1000))
+    control.MCMC=list(confModel.expression.toadd=sampler.expression.toadd, APT=TRUE, parallelize=TRUE, parallelizeInitExpr= expression(if(MCMC_language=="Nimble"){library(nimble);if(control.MCMC$APT) {library(nimbleAPT)}} else {NULL}), n.adapt=1000))
 #> [1] "control$seed is NULL. Replaced by 1"
 #> [1] "###################################################################################"
 #> [1] "Case of niter update: Non convergence"
@@ -482,21 +656,55 @@ out.mcmc.blockAPT<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, dat
 #> [1] "Case of niter update: Non convergence"
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
-#> [1] "Case of niter update: Non convergence"
+#> [1] "Raw multiplier of thin:  88.885"
 #> [1] "###################################################################################"
-#> [1] "###################################################################################"
-#> [1] "Raw multiplier of thin:  49.388"
-#> [1] "###################################################################################"
-#> [1] "Testing multiplier of thin:  49 :"
-#> [1] "Retained multiplier of thin:  49 :"
+#> [1] "Testing multiplier of thin:  89 :"
+#> [1] "Testing multiplier of thin:  71 :"
+#> [1] "Testing multiplier of thin:  56 :"
+#> [1] "Testing multiplier of thin:  44 :"
+#> [1] "Testing multiplier of thin:  35 :"
+#> [1] "Testing multiplier of thin:  28 :"
+#> [1] "Testing multiplier of thin:  22 :"
+#> [1] "Testing multiplier of thin:  20 :"
+#> [1] "Testing multiplier of thin:  19 :"
+#> [1] "Testing multiplier of thin:  18 :"
+#> [1] "Testing multiplier of thin:  17 :"
+#> [1] "Testing multiplier of thin:  16 :"
+#> [1] "Testing multiplier of thin:  15 :"
+#> [1] "Testing multiplier of thin:  14 :"
+#> [1] "Testing multiplier of thin:  13 :"
+#> [1] "Testing multiplier of thin:  12 :"
+#> [1] "Retained multiplier of thin:  12 :"
 #> [1] "###################################################################################"
 #> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
 #> [1] "###################################################################################"
 #> [1] "###################################################################################"
-#> [1] "Raw multiplier of thin:  2.43"
+#> [1] "Raw multiplier of thin:  12.135"
+#> [1] "###################################################################################"
+#> [1] "Testing multiplier of thin:  12 :"
+#> [1] "Testing multiplier of thin:  11 :"
+#> [1] "Testing multiplier of thin:  10 :"
+#> [1] "Testing multiplier of thin:  9 :"
+#> [1] "Testing multiplier of thin:  8 :"
+#> [1] "Testing multiplier of thin:  7 :"
+#> [1] "Testing multiplier of thin:  6 :"
+#> [1] "Retained multiplier of thin:  6 :"
+#> [1] "###################################################################################"
+#> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
+#> [1] "###################################################################################"
+#> [1] "###################################################################################"
+#> [1] "Raw multiplier of thin:  1.879"
 #> [1] "###################################################################################"
 #> [1] "Testing multiplier of thin:  2 :"
-#> [1] "Retained multiplier of thin:  2 :"
+#> [1] "Retained multiplier of thin:  1 :"
+#> [1] "###################################################################################"
+#> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
+#> [1] "###################################################################################"
+#> [1] "###################################################################################"
+#> [1] "Raw multiplier of thin:  1.948"
+#> [1] "###################################################################################"
+#> [1] "Testing multiplier of thin:  2 :"
+#> [1] "Retained multiplier of thin:  1 :"
 #> [1] "###################################################################################"
 #> [1] "Case of niter update: Convergence and trying to reach end of MCMC at the end of next cycle"
 #> [1] "###################################################################################"
@@ -505,7 +713,7 @@ out.mcmc.blockAPT<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, dat
 #> [1] "###################################################################################"
 #> [1] "Main MCMC sampling finished."
 #> [1] "###################################################################################"
-#> [1] "Final max raw multiplier of thin:  2.43"
+#> [1] "Final max raw multiplier of thin:  1.948"
 #> [1] "###################################################################################"
 #> [1] "Testing final multiplier of thin:  2 :"
 #> [1] "Retained final multiplier of thin:  1"
@@ -525,29 +733,29 @@ This one converges but does not allow to reach a sufficient number of effective 
 
 summary(out.mcmc.blockAPT)
 #> 
-#> Iterations = 3268:18115
-#> Thinning interval = 49 
+#> Iterations = 2274:63618
+#> Thinning interval = 72 
 #> Number of chains = 2 
-#> Sample size per chain = 304 
+#> Sample size per chain = 853 
 #> 
 #> 1. Empirical mean and standard deviation for each variable,
 #>    plus standard error of the mean:
 #> 
-#>                  Mean      SD Naive SE Time-series SE
-#> Intercept     -0.1127 3.52162 0.142820      0.2580538
-#> Slope          1.0013 0.03521 0.001428      0.0025798
-#> population.sd  1.0290 0.02310 0.000937      0.0009378
+#>                 Mean      SD  Naive SE Time-series SE
+#> Intercept     -0.186 3.38349 0.0819172       0.115256
+#> Slope          1.002 0.03382 0.0008189       0.001152
+#> population.sd  1.028 0.02304 0.0005578       0.000518
 #> 
 #> 2. Quantiles for each variable:
 #> 
 #>                  2.5%     25%     50%   75% 97.5%
-#> Intercept     -6.8666 -2.4423 -0.4271 2.231 6.716
-#> Slope          0.9331  0.9778  1.0046 1.025 1.069
-#> population.sd  0.9828  1.0125  1.0293 1.045 1.071
+#> Intercept     -6.9065 -2.4940 0.01236 2.020 6.259
+#> Slope          0.9376  0.9798 0.99997 1.025 1.069
+#> population.sd  0.9845  1.0127 1.02733 1.043 1.074
 
 effectiveSize(out.mcmc.blockAPT)
 #>     Intercept         Slope population.sd 
-#>      250.4521      250.1634      608.0000
+#>      875.9018      875.7931     2028.2980
 ```
 
 Summaries are fine in this case in the sense that the true parameters are within the credibility intervals.
@@ -562,23 +770,23 @@ Table: Comparison of the efficiency of the different types of samplers:
 
 |                          |   default|  RW.block| Slice.block|       HMC|       APT| APT.block|
 |:-------------------------|---------:|---------:|-----------:|---------:|---------:|---------:|
-|converged                 | 0.000e+00| 0.000e+00|   1.000e+00| 0.000e+00| 0.000e+00| 1.000e+00|
+|converged                 | 0.000e+00| 0.000e+00|   1.000e+00| 1.000e+00| 1.000e+00| 1.000e+00|
 |neffs.reached             | 0.000e+00| 0.000e+00|   1.000e+00| 0.000e+00| 0.000e+00| 0.000e+00|
 |final.Nchains             | 2.000e+00| 2.000e+00|   2.000e+00| 2.000e+00| 2.000e+00| 2.000e+00|
-|burnin                    | 1.000e+02| 1.000e+02|   1.040e+02| 1.000e+02| 1.000e+02| 3.268e+03|
-|thin                      | 5.600e+01| 3.800e+01|   5.000e+00| 1.000e+00| 1.700e+01| 4.900e+01|
-|niter.tot                 | 2.212e+04| 3.879e+04|   5.662e+03| 1.000e+03| 1.715e+04| 1.813e+04|
-|Nvalues                   | 4.080e+02| 2.038e+03|   2.224e+03| 1.800e+03| 2.008e+03| 6.080e+02|
-|neff.min                  | 6.232e+00| 1.191e+01|   1.679e+03| 2.001e+02| 1.019e+02| 2.502e+02|
-|neff.median               | 6.280e+00| 3.025e+01|   2.009e+03| 2.004e+02| 1.019e+02| 2.505e+02|
-|duration                  | 1.441e+02| 1.504e+02|   8.736e+01| 1.424e+02| 1.415e+02| 1.383e+02|
-|duration.MCMC.preparation | 3.716e+01| 3.610e+01|   4.661e+01| 7.238e+01| 3.175e+01| 4.089e+01|
-|duration.MCMC.transient   | 1.223e+01| 1.062e+01|   1.265e+00| 2.778e+01| 3.166e+01| 5.052e+00|
-|duration.MCMC.asymptotic  | 0.000e+00| 0.000e+00|   6.368e+00| 0.000e+00| 0.000e+00| 1.758e+01|
+|burnin                    | 1.000e+02| 1.000e+02|   1.010e+02| 3.520e+02| 1.410e+02| 2.274e+03|
+|thin                      | 2.640e+02| 1.400e+02|   6.000e+00| 1.000e+00| 6.400e+01| 7.200e+01|
+|niter.tot                 | 1.949e+05| 1.404e+05|   5.529e+03| 1.416e+03| 4.423e+04| 6.367e+04|
+|Nvalues                   | 1.410e+03| 2.006e+03|   1.810e+03| 2.128e+03| 1.378e+03| 1.706e+03|
+|neff.min                  | 2.221e+01| 9.290e+00|   1.410e+03| 2.574e+02| 4.284e+01| 8.758e+02|
+|neff.median               | 2.229e+01| 1.070e+01|   1.637e+03| 2.578e+02| 4.287e+01| 8.759e+02|
+|duration                  | 1.244e+02| 1.838e+02|   4.679e+01| 1.253e+02| 1.264e+02| 1.251e+02|
+|duration.MCMC.preparation | 2.685e+01| 3.255e+01|   3.380e+01| 6.849e+01| 2.435e+01| 2.815e+01|
+|duration.MCMC.transient   | 5.618e+01| 2.183e+01|   6.145e-01| 1.652e+01| 1.847e+00| 3.672e+00|
+|duration.MCMC.asymptotic  | 0.000e+00| 0.000e+00|   3.029e+00| 1.300e+01| 7.128e+01| 6.880e+01|
 
 
 
-We notice that 2 methods reached convergence - the block slice sampler and the block APT sampler - but only one reached the required number of effective values: the block slice sampler.  On the whole it therefore appears that block slice sampling clearly performs best on this case. The block APT sampler comes second since it converged and reached final numbers of effective values that were far greater than the default setting. The Hamiltonian was stopped soon in terms of number of iterations but its number of effective values was rather promising. 
+We notice that 4 methods reached convergence - the block slice sampler, the Hamiltonian sampler, the APT sampler and the block APT sampler - but only one reached the required number of effective values: the block slice sampler.  On the whole it therefore appears that block slice sampling clearly performs best on this case. The block APT sampler comes second since it converged and reached final numbers of effective values that were far greater than the default setting. The Hamiltonian was stopped soon in terms of number of iterations but its number of effective values was rather promising. 
 
 
 

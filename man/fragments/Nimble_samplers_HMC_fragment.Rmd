@@ -25,7 +25,7 @@ out.mcmc.HMC<-runMCMC_btadjust(code=ModelCode, constants = ModelConsts, data = M
     thin.min=1, thin.max=Inf,
     conv.max=1.05, neff.min=1000,
     control=list(neff.method="Coda", time.max=120, print.diagnostics=FALSE),
-    control.MCMC=list(confModel.expression.toadd=sampler.expression.toadd, parallelizeInitExpr= newParallelizeInitExpr,buildDerivs=TRUE, parallelize=TRUE, n.adapt=1000))
+    control.MCMC=list(confModel.expression.toadd=sampler.expression.toadd, parallelizeInitExpr= newParallelizeInitExpr,buildDerivs=TRUE, parallelize=TRUE,parallelizeInitExpr= newParallelizeInitExpr, n.adapt=1000))
 ```
 
 `r if(as.logical(attributes(out.mcmc.HMC)$final.params$converged)&!as.logical(attributes(out.mcmc.HMC)$final.params$neffs.reached)){ paste0("With these adaptations, within two minutes, the Hamiltonian Monte Carlo sampler does not go very far; it converges but does not reach the required number of effective values. This is due to a longer time per iteration and a longer time of MCMC preparation than with other samplers. The associated summary is given below:")}`

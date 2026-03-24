@@ -1,4 +1,4 @@
-context("runMCMC_btadjust")
+### deprecated in the third edition of testthat: context("runMCMC_btadjust")
 
 ### minimal setup for running runMCMC_btadjust: see vignette
 set.seed(1)

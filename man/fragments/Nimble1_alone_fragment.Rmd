@@ -10,6 +10,8 @@ library(nimble)
 
 ```
 
+Note that the version of `NIMBLE` needs to be controlled: package `runMCMCbtadjust` will not run with version 1.4.0 of `NIMBLE` for reasons detailed in <https://github.com/nimble-dev/nimble/issues/1608>. It is also preferable to use a version greater than or equal to 1.1.0.`In case you have installed verwion 1.4.0, consider installing version 1.4.1 through the command: `version::install.versions('nimble', '1.4.1')`, which requires the prior installation of package `version` if not already installed.
+
 As `NIMBLE` distinguishes data that have random distributions from other data, we specify two distinct lists to contain these:
 
 ```{r Nimble Data}
@@ -157,7 +159,7 @@ knitr::kable(compar_MCMC_times[1:(dim(compar_MCMC_times)[1]-1),],col.names=c("Ni
 		ifelse((as.double(compar_MCMC_times["duration.MCMC.asymptotic",2])<as.double(compar_MCMC_times["duration.MCMC.asymptotic",1])*1.5)|(as.double(compar_MCMC_times["thin",2])<as.double(compar_MCMC_times["thin",1])*1.5),NULL, "while the default setting takes more time for the asymptotic phase (\"duration.MCMC.asymptotic\" and \"CPUduration.MCMC.asymptotic\"), linked to a greater thinning parameter (\"thin\")")
 		,". This transient part should be linked to the different behaviors between Geweke and Gelman-Rubin convergence diagnostics",
 		ifelse(as.double(compar_MCMC_times["thin",2])<as.double(compar_MCMC_times["thin",1])*1.5,NULL,", while the differences in thinning parameters might be linked to the different methods in calculating the number of effective parameters"),
-		". We therefore run a third MCMC on one chain with Geweke diagnostic but the default, rstan method for number of effective values.")} else {paste0("We also wished to run a third MCMC on one chain with Geweke diagnostic but the default, rstan method for number of effective values, assumed to be more consertaive - i.e. to estimate lower numbers of effective values.")}`
+		". We therefore run a third MCMC on one chain with Geweke diagnostic but the default, rstan method for number of effective values.")} else {paste0("We also wished to run a third MCMC on one chain with Geweke diagnostic but the default, rstan method for number of effective values, assumed to be more conservative - i.e. to estimate lower numbers of effective values.")}`
 	
 
 

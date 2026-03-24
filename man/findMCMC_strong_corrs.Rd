@@ -18,7 +18,10 @@ findMCMC_strong_corrs(
 
 \item{minCorr}{double, between 0 and 1: minimum level of (absolute) correlation to report.}
 
-\item{namesToRemove}{R object (can be a vector, matrix, array, list...) all components of which must be of character type: will remove parameters whose names partially match one of tghese components.}
+\item{namesToRemove}{R object (can be a vector, matrix, array, list...) all components of which must be of character type: will remove parameters whose names partially match one of these components.}
+}
+\value{
+a data.frame of pairs of model parameters - in the first two columns- with their associated correlation in the MCMC - in the third column
 }
 \description{
 finds the couples of parameters of a MCMC.list object that have at least a minCorr level of (absolute) correlation

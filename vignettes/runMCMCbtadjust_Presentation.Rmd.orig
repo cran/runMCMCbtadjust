@@ -8,7 +8,7 @@ bibliography: references.bib
 csl: ecology.csl 
 vignette: >
   %\VignetteEngine{knitr::knitr}
-  %\VignetteIndexEntry{1- runMCMCbtadjust Presentation}
+  %\VignetteIndexEntry{runMCMCbtadjust Presentation}
   %\usepackage[UTF-8]{inputenc}
 
 ---
@@ -59,7 +59,7 @@ This function has four main advantages:
 	
 	and (iv) it can be applied with different MCMC R languages. Indeed, `runMCMC_btadjust()` uses other Bayesian packages to fit the MCMC. At present, only `JAGS`, `NIMBLE` and `greta` can be used as these are the main Bayesian fitting tools in R known by the package author and that permit to continue an already fitted MCMC - which is required for numerical efficiency. We will here show how to fit and compare a very simple model under these three languages, using the possibilities allowed by `runMCMC_btadjust()`.
 	
-`runMCMC_btadjust()` has a stronger integration with NIMBLE, for which it has the **additional advantage of somewhat easying MCMC sampler control and extra calculations**, i.e. calculations on the fitted model, after the end of the MCMC (see the separate two vignettes on these two topics).
+`runMCMC_btadjust()` has a stronger integration with NIMBLE, for which it has the **additional advantage of somewhat easing MCMC sampler control and extra calculations**, i.e. calculations on the fitted model, after the end of the MCMC (see the separate two vignettes on these two topics).
 
 We will **here show how to fit and compare a very simple model under these three languages**, using the possibilities allowed by `runMCMC_btadjust()`.
 
